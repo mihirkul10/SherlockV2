@@ -28,7 +28,7 @@ export const SEED_HANDLES = [
   "@NatalieBrunell",
   "@UncommonCore",
   "@ScottMelker",
-  "@MessariCrypto",
+  "@messari", // Was @MessariCrypto in the original seed list — they renamed to plain @messari (channel UCFEHdhuB_BEUHA_eL9cjqHA, title "Messari")
   "@EpicenterTV",
   "@SolanaFndn",
   "@BlockchainatBerkeley",
