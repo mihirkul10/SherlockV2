@@ -1,0 +1,19 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+
+# Local-only state databases (never commit)
+state/*.sqlite
+state/*.sqlite-wal
+state/*.sqlite-shm
+
+# Local clones of the data repos (cloned at sibling paths via launchd jobs)
+sherlock-context/
+sherlock-vault/
+
+# Editor + env
+.env
+.env.local
+.vscode/
+.idea/
