@@ -85,10 +85,25 @@ async function cloudSmoke(
     return { ok: result.status === "finished", ms: Date.now() - t0, agentId: result.id };
   } catch (err) {
     if (err instanceof CursorAgentError) {
-      log.error({ msg: err.message, retryable: err.isRetryable }, "CursorAgentError on cloud smoke");
+      log.error(
+        {
+          message: err.message,
+          retryable: err.isRetryable,
+          name: err.name,
+          stack: err.stack?.split("\n").slice(0, 5).join("\n"),
+        },
+        "CursorAgentError on cloud smoke"
+      );
       return { ok: false, ms: Date.now() - t0 };
     }
-    throw err;
+    log.error(
+      {
+        type: err?.constructor?.name ?? typeof err,
+        message: err instanceof Error ? err.message : String(err),
+      },
+      "Non-CursorAgentError on cloud smoke"
+    );
+    return { ok: false, ms: Date.now() - t0 };
   }
 }
 
