@@ -31,7 +31,7 @@ You are SherlockV2's Substack ingestion agent. Fetch new posts from the newslett
 
    ```bash
    npm install --no-audit --no-fund
-   tsx src/scripts/ingest-once.ts substack
+   npm run ingest -- substack
    ```
 
 Writes to `sherlock-context/_raw/substack/<subdomain>/<yyyy-mm-dd>-<slug>.md` and updates `_state/substack-state.json`.

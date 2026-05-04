@@ -35,7 +35,7 @@ Apify, and commit normalized Markdown to `sherlock-context`.
 
    ```bash
    npm install --no-audit --no-fund
-   tsx src/scripts/ingest-once.ts youtube
+   npm run ingest -- youtube
    ```
 
    This script reads `sherlock-context/_state/sources.json`, iterates every

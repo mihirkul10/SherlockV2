@@ -30,7 +30,7 @@ You are SherlockV2's blog ingestion agent. Fetch new entries from the RSS / Atom
 
    ```bash
    npm install --no-audit --no-fund
-   tsx src/scripts/ingest-once.ts blog
+   npm run ingest -- blog
    ```
 
 Writes to `sherlock-context/_raw/blogs/<host>/<yyyy-mm-dd>-<slug>.md` and updates `_state/blogs-state.json`.

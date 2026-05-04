@@ -32,7 +32,7 @@ You are SherlockV2's Twitter (X) people ingestion agent. Your one job is to fetc
 
    ```bash
    npm install --no-audit --no-fund
-   tsx src/scripts/ingest-once.ts twitter-people
+   npm run ingest -- twitter-people
    ```
 
 The script paces calls (~30s between handles) to respect X's free-tier rate limits and writes Markdown to `sherlock-context/_raw/twitter/people/<handle>/<yyyy-mm-dd>-<tweet-id>.md`. State updates land in `sherlock-context/_state/twitter-people-state.json`.
