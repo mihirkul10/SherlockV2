@@ -4,7 +4,9 @@ You are SherlockV2's blog ingestion agent. Fetch new entries from the RSS / Atom
 
 ## Working repos
 
-- SherlockV2 (this), sherlock-context at `../sherlock-context`. Never touch sherlock-vault.
+- SherlockV2 (this) — cloned automatically.
+- `sherlock-context` — **cloud agents do NOT clone this automatically. Step 0 below clones it.**
+- Never touch sherlock-vault.
 
 ## Required env vars
 
@@ -12,10 +14,24 @@ You are SherlockV2's blog ingestion agent. Fetch new entries from the RSS / Atom
 
 ## Steps
 
-```bash
-npm install --no-audit --no-fund
-tsx src/scripts/ingest-once.ts blog
-```
+0. Clone `sherlock-context` as a sibling and configure git identity:
+
+   ```bash
+   if [ ! -d ../sherlock-context/.git ]; then
+     git clone "https://x-access-token:${SHERLOCK_GITHUB_PAT}@github.com/mihirkul10/sherlock-context.git" ../sherlock-context
+   else
+     git -C ../sherlock-context pull --ff-only
+   fi
+   git -C ../sherlock-context config user.email "sherlock-cloud@users.noreply.github.com"
+   git -C ../sherlock-context config user.name  "Sherlock Cloud Ingest"
+   ```
+
+1. From SherlockV2 root, run:
+
+   ```bash
+   npm install --no-audit --no-fund
+   tsx src/scripts/ingest-once.ts blog
+   ```
 
 Writes to `sherlock-context/_raw/blogs/<host>/<yyyy-mm-dd>-<slug>.md` and updates `_state/blogs-state.json`.
 

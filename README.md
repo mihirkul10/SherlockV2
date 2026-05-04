@@ -15,8 +15,10 @@ Cursor-native personal research analyst. Cloud-scheduled ingestion + a local two
 ## Three kinds of agents
 
 1. **Cloud ingestion agents** (`.cursor/automations/ingest-*.md`) — Cursor Cloud Automations on a schedule. Each writes one source-type to `sherlock-context`.
-2. **Sherlock-Front** (`src/bridge/front-runner.ts`) — local SDK agent spawned per iMessage turn. Always responsive. Recon → scope → confirm → delegate.
-3. **Sherlock-Researcher** (`src/bridge/researcher-runner.ts`) — on-demand local SDK sub-agents (cap = 3 concurrent). Each writes a Markdown report to `sherlock-vault/Reports/` and DMs you when done.
+2. **Sherlock-Front** (`src/bridge/front-runner.ts`) — local SDK agent spawned per iMessage turn. Always responsive. Recon → scope → confirm → delegate. Model: `claude-haiku-4-5`.
+3. **Sherlock-Researcher** (`src/bridge/researcher-runner.ts`) — on-demand local SDK sub-agents (cap = 3 concurrent). Each writes a Markdown report to `sherlock-vault/Reports/` and DMs you when done. Model: `claude-sonnet-4-6`.
+
+> Models are routed through Cursor (`@cursor/sdk` + `CURSOR_API_KEY`); see `npm run list:models` to inspect the catalog.
 
 ## Quick start
 

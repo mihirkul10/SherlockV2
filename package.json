@@ -15,6 +15,7 @@
     "resolve:youtube": "tsx src/scripts/resolve-youtube-handles.ts",
     "resolve:twitter": "tsx src/scripts/resolve-twitter-handles.ts",
     "smoke:sdk": "tsx src/scripts/sdk-smoke.ts",
+    "list:models": "tsx src/scripts/list-models.ts",
     "seed:sources": "tsx src/scripts/seed-sources.ts",
     "reindex": "tsx src/scripts/reindex.ts",
     "indexer": "tsx src/scripts/indexer.ts",

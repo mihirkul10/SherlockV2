@@ -88,7 +88,9 @@ export async function runFrontTurn(opts: {
     };
     agent = await Agent.create({
       apiKey,
-      model: { id: "composer-2" },
+      // Front is the fast-path orchestrator: scopes intent, does quick recon,
+      // delegates deep work. Optimized for low latency + low cost per turn.
+      model: { id: "claude-haiku-4-5" },
       local: { cwd: PROJECT_ROOT, settingSources: [] },
       mcpServers: {
         "context-search": {

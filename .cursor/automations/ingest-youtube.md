@@ -6,18 +6,30 @@ Apify, and commit normalized Markdown to `sherlock-context`.
 
 ## Working repos
 
-- This repo: SherlockV2 (code).
-- `sherlock-context` cloned at `../sherlock-context` (you have write access).
+- This repo: SherlockV2 (code) — cloned automatically by the cloud runtime.
+- `sherlock-context` — **cloud agents do NOT clone this automatically. Step 0 below clones it.**
 - **Never touch `sherlock-vault`.** It is not in your repo list.
 
 ## Required env vars
 
 - `YOUTUBE_API_KEY` (resolver only — RSS discovery doesn't use it, but `seed-sources` does)
 - `APIFY_API_TOKEN` (transcript extraction via `starvibe/youtube-video-transcript`)
-- `SHERLOCK_GITHUB_PAT` (for `git push`)
+- `SHERLOCK_GITHUB_PAT` (for the `sherlock-context` clone in Step 0 + `git push` in Step 3)
 - `SHERLOCK_CONTEXT_PATH=../sherlock-context`
 
 ## Steps
+
+0. From the SherlockV2 repo root, ensure `sherlock-context` is available as a sibling clone, then configure git identity:
+
+   ```bash
+   if [ ! -d ../sherlock-context/.git ]; then
+     git clone "https://x-access-token:${SHERLOCK_GITHUB_PAT}@github.com/mihirkul10/sherlock-context.git" ../sherlock-context
+   else
+     git -C ../sherlock-context pull --ff-only
+   fi
+   git -C ../sherlock-context config user.email "sherlock-cloud@users.noreply.github.com"
+   git -C ../sherlock-context config user.name  "Sherlock Cloud Ingest"
+   ```
 
 1. From the SherlockV2 repo root, run:
 
@@ -38,7 +50,7 @@ Apify, and commit normalized Markdown to `sherlock-context`.
    - `git status` in `../sherlock-context` should show new files only under
      `_raw/youtube/`, `_state/youtube-state.json`, and `_runs/`.
 
-3. If exit code is 0 or 1 with at least some new files, commit + push:
+3. If exit code is 0 or 1 with at least some new files, commit + push (the remote URL was already configured with the PAT in Step 0):
 
    ```bash
    cd ../sherlock-context

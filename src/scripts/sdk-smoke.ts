@@ -28,7 +28,9 @@ async function localSmoke(apiKey: string): Promise<{ ok: boolean; ms: number; ru
   log.info("LOCAL smoke: Agent.create({ local }) on %s", PROJECT_ROOT);
   const agent = await Agent.create({
     apiKey,
-    model: { id: "composer-2" },
+    // Smoke uses the same fast model as Sherlock-Front to validate the
+    // exact ID Front will spawn against in production.
+    model: { id: "claude-haiku-4-5" },
     local: { cwd: PROJECT_ROOT, settingSources: [] },
   });
   let runId: string | undefined;
@@ -73,7 +75,9 @@ async function cloudSmoke(
       "Reply with the single word OK and nothing else. Do not edit any files.",
       {
         apiKey,
-        model: { id: "composer-2" },
+        // Cloud smoke uses Sonnet 4.6 to validate the model used by ingestion
+        // automations (which run as cloud agents on the same SDK).
+        model: { id: "claude-sonnet-4-6" },
         cloud: {
           repos: [{ url: repoUrl }],
           autoCreatePR: false,

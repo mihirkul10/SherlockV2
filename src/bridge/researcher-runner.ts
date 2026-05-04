@@ -78,7 +78,9 @@ async function spawn(args: {
   try {
     agent = await Agent.create({
       apiKey,
-      model: { id: "composer-2" },
+      // Researcher does deep synthesis across many sources over 5–15 min.
+      // Optimized for reasoning quality, not latency.
+      model: { id: "claude-sonnet-4-6" },
       // cwd is the vault so that report-writer's git commit/push works inline.
       local: { cwd: VAULT_PATH, settingSources: [] },
       mcpServers: {
