@@ -21,8 +21,9 @@ import { recentMessages, type StoredMessage } from "./conversation.js";
 
 const log = createLogger("bridge:front-runner");
 
-const SYSTEM_PROMPT_PATH = resolve(PROJECT_ROOT, "src", "prompts", "front.system.md");
-const CONTEXT_SEARCH_MCP = resolve(PROJECT_ROOT, "src", "tools", "context-search", "server.ts");
+const SYSTEM_PROMPT_PATH    = resolve(PROJECT_ROOT, "src", "prompts", "front.system.md");
+const CONTEXT_SEARCH_MCP    = resolve(PROJECT_ROOT, "src", "tools", "context-search",   "server.ts");
+const RESEARCH_CONTROL_MCP  = resolve(PROJECT_ROOT, "src", "tools", "research-control", "server.ts");
 
 let cachedSystemPrompt: string | null = null;
 function loadSystemPrompt(): string {
@@ -78,6 +79,12 @@ export async function runFrontTurn(opts: {
 
   let agent: SDKAgent | undefined;
   try {
+    // Inject the chat_guid into research-control's spawn env so research.start
+    // doesn't need it as an argument every time.
+    const childEnv = {
+      ...process.env,
+      SHERLOCK_DEFAULT_CHAT_GUID: opts.chat_guid,
+    };
     agent = await Agent.create({
       apiKey,
       model: { id: "composer-2" },
@@ -86,9 +93,14 @@ export async function runFrontTurn(opts: {
         "context-search": {
           command: "npx",
           args: ["tsx", CONTEXT_SEARCH_MCP],
+          env: childEnv,
+        },
+        "research-control": {
+          command: "npx",
+          args: ["tsx", RESEARCH_CONTROL_MCP],
+          env: childEnv,
         },
         // Parallel-search MCP (HTTP transport).
-        // Note: this MCP requires PARALLEL_API_KEY; the SDK will pass it via env.
         "parallel-search": {
           url: "https://search-mcp.parallel.ai/mcp",
           headers: {
