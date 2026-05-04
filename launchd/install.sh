@@ -11,6 +11,8 @@ mkdir -p "$HOME/Library/Logs"
 JOBS=(
   "com.sherlock.context-sync"
   "com.sherlock.vault-sync"
+  "com.sherlock.bridge"
+  "com.sherlock.indexer"
 )
 
 for job in "${JOBS[@]}"; do

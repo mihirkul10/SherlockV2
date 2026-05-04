@@ -96,8 +96,12 @@ async function main(): Promise<void> {
     try {
       if (name === "bluebubbles.notify_complete") {
         const a = NotifyInput.parse(rawArgs ?? {});
-        const chat = a.chat_guid ?? optionalEnv("BLUEBUBBLES_DEFAULT_CHAT_GUID");
-        if (!chat) throw new Error("no chat_guid (and no BLUEBUBBLES_DEFAULT_CHAT_GUID env)");
+        // Routing: explicit > BLUEBUBBLES_DEFAULT_CHAT_GUID (set by bridge per spawn)
+        // > ADMIN_IMESSAGE (the user's own Apple ID, fallback for runs without context)
+        const chat = a.chat_guid
+          ?? optionalEnv("BLUEBUBBLES_DEFAULT_CHAT_GUID")
+          ?? optionalEnv("ADMIN_IMESSAGE");
+        if (!chat) throw new Error("no chat_guid (no BLUEBUBBLES_DEFAULT_CHAT_GUID or ADMIN_IMESSAGE env)");
         const link = obsidianDeepLink(a.vault_path);
         const text = `Report #${a.research_id} ready: ${link}\n\nTL;DR: ${a.tldr}`;
         diag(`NOTIFY research_id=${a.research_id} chat=${chat} link=${link}`);
@@ -107,8 +111,10 @@ async function main(): Promise<void> {
 
       if (name === "bluebubbles.send_followup") {
         const a = SendFollowupInput.parse(rawArgs ?? {});
-        const chat = a.chat_guid ?? optionalEnv("BLUEBUBBLES_DEFAULT_CHAT_GUID");
-        if (!chat) throw new Error("no chat_guid (and no BLUEBUBBLES_DEFAULT_CHAT_GUID env)");
+        const chat = a.chat_guid
+          ?? optionalEnv("BLUEBUBBLES_DEFAULT_CHAT_GUID")
+          ?? optionalEnv("ADMIN_IMESSAGE");
+        if (!chat) throw new Error("no chat_guid (no BLUEBUBBLES_DEFAULT_CHAT_GUID or ADMIN_IMESSAGE env)");
         diag(`FOLLOWUP chat=${chat} chars=${a.text.length}`);
         const ok = await sendIMessageChunked(chat, a.text);
         return { content: [{ type: "text", text: JSON.stringify({ ok }) }] };

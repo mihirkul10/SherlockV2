@@ -14,13 +14,16 @@ for r in SherlockV2 sherlock-context sherlock-vault; do
   [ "$v" = "PRIVATE" ] && check OK "mihirkul10/$r is private" || check "$v" "mihirkul10/$r missing or not private"
 done
 
-echo "=== V2: Local clones on main + clean ==="
+echo "=== V2: Local clones on main, no commits ahead of origin ==="
+# We don't check 'dirty' here because the M1+ ingestion verify scripts intentionally
+# write to _runs/ingest-runs.ndjson and _state/*.json as part of their idempotency
+# probes. What matters for M0 is that the clones exist, are on main, and have no
+# unpushed commits stuck locally.
 for d in "$HOME/Projects/sherlock-context" "$HOME/Projects/sherlock-vault"; do
   if [ -d "$d/.git" ]; then
-    cd "$d"
-    branch=$(git branch --show-current)
-    dirty=$(git status --porcelain | wc -l | tr -d ' ')
-    [ "$branch" = "main" ] && [ "$dirty" -eq 0 ] && check OK "$d on main, clean" || check FAIL "$d branch=$branch dirty=$dirty"
+    branch=$(git -C "$d" branch --show-current)
+    ahead=$(git -C "$d" rev-list --count "@{u}..HEAD" 2>/dev/null || echo 0)
+    [ "$branch" = "main" ] && [ "${ahead:-0}" -eq 0 ] && check OK "$d on main, no unpushed commits" || check FAIL "$d branch=$branch ahead=$ahead"
   else
     check FAIL "$d not a git repo"
   fi
@@ -51,8 +54,9 @@ for f in youtube substack twitter-people twitter-bookmarks blogs; do
 done
 
 echo "=== V5: launchd jobs registered ==="
+LAUNCHD_LIST=$(launchctl list 2>&1)
 for j in com.sherlock.context-sync com.sherlock.vault-sync; do
-  if launchctl list | grep -q "$j"; then check OK "$j registered"; else check FAIL "$j not registered"; fi
+  if echo "$LAUNCHD_LIST" | grep -q "$j"; then check OK "$j registered"; else check FAIL "$j not registered"; fi
 done
 
 echo "=== V6: launchd logs exist (proves jobs ran) ==="

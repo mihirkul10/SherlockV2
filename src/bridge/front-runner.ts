@@ -24,6 +24,7 @@ const log = createLogger("bridge:front-runner");
 const SYSTEM_PROMPT_PATH    = resolve(PROJECT_ROOT, "src", "prompts", "front.system.md");
 const CONTEXT_SEARCH_MCP    = resolve(PROJECT_ROOT, "src", "tools", "context-search",   "server.ts");
 const RESEARCH_CONTROL_MCP  = resolve(PROJECT_ROOT, "src", "tools", "research-control", "server.ts");
+const SOURCES_MCP           = resolve(PROJECT_ROOT, "src", "tools", "sources",          "server.ts");
 
 let cachedSystemPrompt: string | null = null;
 function loadSystemPrompt(): string {
@@ -98,6 +99,11 @@ export async function runFrontTurn(opts: {
         "research-control": {
           command: "npx",
           args: ["tsx", RESEARCH_CONTROL_MCP],
+          env: childEnv,
+        },
+        "sources": {
+          command: "npx",
+          args: ["tsx", SOURCES_MCP],
           env: childEnv,
         },
         // Parallel-search MCP (HTTP transport).

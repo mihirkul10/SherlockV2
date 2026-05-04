@@ -24,6 +24,10 @@ import { createLogger } from "../shared/logger.js";
 import { SOURCES_JSON, CONTEXT_RUNS_LOG } from "../shared/paths.js";
 import { SourcesConfigSchema } from "../shared/sources-schema.js";
 import { ingestYouTubeChannel, type IngestSummary } from "../ingest/youtube.js";
+import { ingestTwitterPerson, type IngestPersonResult } from "../ingest/twitter-people.js";
+import { ingestSubstackNewsletter, type IngestSubstackResult } from "../ingest/substack.js";
+import { ingestBlogFeed, type IngestBlogResult } from "../ingest/blogs.js";
+import { requireEnv } from "../shared/env.js";
 
 const log = createLogger("ingest-once");
 
@@ -94,13 +98,106 @@ async function ingestYouTube(selectorChannelId: string | undefined, selectorHand
   return summaries;
 }
 
+interface AnyIngestSummary {
+  unitId: string;        // channelId, userId, subdomain, feedUrl
+  unitName: string;
+  newItems: number;
+  errors: string[];
+  durationMs: number;
+}
+
+function asYouTubeSummary(s: IngestSummary): AnyIngestSummary {
+  return { unitId: s.channelId, unitName: s.channelName, newItems: s.newWithTranscript + s.newWithoutTranscript, errors: s.errors, durationMs: s.durationMs };
+}
+function asTwitterSummary(s: IngestPersonResult): AnyIngestSummary {
+  return { unitId: s.userId, unitName: `@${s.handle}`, newItems: s.newIngested, errors: s.errors, durationMs: s.durationMs };
+}
+function asSubstackSummary(s: IngestSubstackResult): AnyIngestSummary {
+  return { unitId: s.subdomain, unitName: s.newsletterName, newItems: s.newIngested, errors: s.errors, durationMs: s.durationMs };
+}
+function asBlogSummary(s: IngestBlogResult): AnyIngestSummary {
+  return { unitId: s.feedUrl, unitName: s.feedName, newItems: s.newIngested, errors: s.errors, durationMs: s.durationMs };
+}
+
+async function ingestTwitterPeople(selectorUserId: string | undefined, selectorHandle: string | undefined): Promise<AnyIngestSummary[]> {
+  const sources = loadSources();
+  let people = sources.twitter.people;
+  if (selectorUserId) people = people.filter((p) => p.userId === selectorUserId);
+  if (selectorHandle) {
+    const wanted = selectorHandle.replace(/^@/, "").toLowerCase();
+    people = people.filter((p) => p.handle.toLowerCase() === wanted);
+  }
+  if (people.length === 0) {
+    log.warn("no twitter people to ingest (sources.json has 0 or selector matched none)");
+    return [];
+  }
+  const bearer = requireEnv("TWITTER_BEARER_TOKEN");
+  const out: AnyIngestSummary[] = [];
+  for (const person of people) {
+    try {
+      const result = await ingestTwitterPerson({
+        userId: person.userId,
+        handle: person.handle,
+        authorName: person.name,
+        bearer,
+      });
+      out.push(asTwitterSummary(result));
+      // Aggressive pacing — X free tier rate limits (~1 user-tweets call per ~30s).
+      await new Promise((r) => setTimeout(r, 30_000));
+    } catch (err) {
+      out.push({ unitId: person.userId, unitName: `@${person.handle}`, newItems: 0, errors: [err instanceof Error ? err.message : String(err)], durationMs: 0 });
+    }
+  }
+  return out;
+}
+
+async function ingestSubstack(selectorSubdomain: string | undefined): Promise<AnyIngestSummary[]> {
+  const sources = loadSources();
+  let newsletters = sources.substack.newsletters;
+  if (selectorSubdomain) newsletters = newsletters.filter((n) => n.subdomain === selectorSubdomain);
+  if (newsletters.length === 0) {
+    log.info("no substack newsletters configured (add via sources.add or seed sources.json)");
+    return [];
+  }
+  const out: AnyIngestSummary[] = [];
+  for (const n of newsletters) {
+    try {
+      const result = await ingestSubstackNewsletter({ subdomain: n.subdomain, newsletterName: n.name });
+      out.push(asSubstackSummary(result));
+    } catch (err) {
+      out.push({ unitId: n.subdomain, unitName: n.name, newItems: 0, errors: [err instanceof Error ? err.message : String(err)], durationMs: 0 });
+    }
+  }
+  return out;
+}
+
+async function ingestBlogs(selectorFeedUrl: string | undefined): Promise<AnyIngestSummary[]> {
+  const sources = loadSources();
+  let feeds = sources.blogs.feeds;
+  if (selectorFeedUrl) feeds = feeds.filter((f) => f.url === selectorFeedUrl);
+  if (feeds.length === 0) {
+    log.info("no blog feeds configured (add via sources.add)");
+    return [];
+  }
+  const out: AnyIngestSummary[] = [];
+  for (const f of feeds) {
+    try {
+      const result = await ingestBlogFeed({ feedUrl: f.url, feedName: f.name, feedType: f.type === "atom" ? "atom" : "rss" });
+      out.push(asBlogSummary(result));
+    } catch (err) {
+      out.push({ unitId: f.url, unitName: f.name, newItems: 0, errors: [err instanceof Error ? err.message : String(err)], durationMs: 0 });
+    }
+  }
+  return out;
+}
+
 async function main(): Promise<number> {
   loadEnv();
   const args = process.argv.slice(2);
   const source = args[0];
   if (!source) {
     log.error("Usage: ingest-once.ts <source> [<id>] [--handle @x]");
-    log.error("Sources: youtube, substack, twitter-people, twitter-bookmarks, blog");
+    log.error("Sources: youtube, substack, twitter-people, blog");
     return 2;
   }
 
@@ -114,12 +211,19 @@ async function main(): Promise<number> {
   const runId = nanoid(10);
   log.info({ runId, source, selector }, "ingest-once start");
 
-  let summaries: IngestSummary[];
+  let summaries: AnyIngestSummary[];
   try {
     if (source === "youtube") {
-      summaries = await ingestYouTube(selectorId, selectorHandle);
+      const s = await ingestYouTube(selectorId, selectorHandle);
+      summaries = s.map(asYouTubeSummary);
+    } else if (source === "twitter-people") {
+      summaries = await ingestTwitterPeople(selectorId, selectorHandle);
+    } else if (source === "substack") {
+      summaries = await ingestSubstack(selectorId);
+    } else if (source === "blog" || source === "blogs") {
+      summaries = await ingestBlogs(selectorId);
     } else {
-      log.error({ source }, "source not yet implemented (this CLI grows in M3/M4)");
+      log.error({ source }, "source not yet supported (twitter-bookmarks deferred to M4+1 due to OAuth requirement)");
       return 2;
     }
   } catch (err) {
@@ -139,7 +243,7 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const totalNew = summaries.reduce((sum, s) => sum + s.newWithTranscript + s.newWithoutTranscript, 0);
+  const totalNew = summaries.reduce((sum, s) => sum + s.newItems, 0);
   const totalErrors = summaries.reduce((sum, s) => sum + s.errors.length, 0);
   const status: "ok" | "partial" | "error" = totalErrors === 0 ? "ok" : (totalNew > 0 ? "partial" : "error");
 

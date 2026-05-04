@@ -17,6 +17,8 @@
     "smoke:sdk": "tsx src/scripts/sdk-smoke.ts",
     "seed:sources": "tsx src/scripts/seed-sources.ts",
     "reindex": "tsx src/scripts/reindex.ts",
+    "indexer": "tsx src/scripts/indexer.ts",
+    "indexer:dev": "tsx watch src/scripts/indexer.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

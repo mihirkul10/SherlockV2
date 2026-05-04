@@ -61,7 +61,15 @@ const StatsInputSchema = z.object({});
 
 async function main(): Promise<void> {
   loadEnv();
-  diag(`SPAWN pid=${process.pid} cwd=${process.cwd()}`);
+  const { INDEX_DB, PROJECT_ROOT, STATE_DIR } = await import("../../shared/paths.js");
+  // Belt-and-suspenders diag write to a known-absolute /tmp path so we can rule
+  // out cwd / HOME issues even if the in-state diag write silently fails.
+  try {
+    const fs = await import("node:fs");
+    fs.appendFileSync("/tmp/sherlock-mcp-context.log",
+      `${new Date().toISOString()} SPAWN pid=${process.pid} cwd=${process.cwd()} HOME=${process.env["HOME"] ?? "<unset>"} SHERLOCK_PROJECT_ROOT=${process.env["SHERLOCK_PROJECT_ROOT"] ?? "<unset>"} INDEX_DB=${INDEX_DB} PROJECT_ROOT=${PROJECT_ROOT} STATE_DIR=${STATE_DIR}\n`);
+  } catch { /* ignore */ }
+  diag(`SPAWN pid=${process.pid} cwd=${process.cwd()} HOME=${process.env["HOME"] ?? "<unset>"} INDEX_DB=${INDEX_DB}`);
 
   const server = new Server(
     {
