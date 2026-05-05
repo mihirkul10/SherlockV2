@@ -29,13 +29,13 @@ import { runFrontTurn } from "./front-runner.js";
 // Importing researcher-runner registers the spawner with the job-manager (side effect).
 import "./researcher-runner.js";
 import { snapshot, cancelRun, recoverOrphans } from "./job-manager.js";
-import { buildSnapshot } from "./admin-state.js";
-import { ADMIN_HTML } from "./admin-html.js";
+import { buildSnapshot } from "../admin/snapshot.js";
 
 loadEnv();
 const log = createLogger("bridge");
 
 const PORT = parseInt(optionalEnv("BRIDGE_PORT") ?? "18790", 10);
+const ADMIN_PORT = parseInt(optionalEnv("ADMIN_PORT") ?? "18789", 10);
 
 // ─── Inbound handler ──────────────────────────────────────────────────
 
@@ -221,12 +221,16 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  // ─── Admin dashboard (live, polled by browser every 3s) ──────────────
+  // ─── Admin dashboard now lives in com.sherlock.admin on its own port. ─
+  // The dashboard URL was moved so it can outlive the bridge (it controls
+  // the bridge via launchctl). This redirect keeps old bookmarks working.
   if (req.method === "GET" && (url === "/admin" || url === "/admin/")) {
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(ADMIN_HTML);
+    const target = `http://127.0.0.1:${ADMIN_PORT}/admin`;
+    res.writeHead(302, { "Location": target, "Cache-Control": "no-store" });
+    res.end(`redirecting to ${target}`);
     return;
   }
+  // Kept for any external caller still polling /admin/state on the bridge.
   if (req.method === "GET" && url === "/admin/state") {
     try {
       const snap = buildSnapshot({ port: PORT });

@@ -11,6 +11,8 @@
     "build": "tsc",
     "bridge": "tsx src/bridge/index.ts",
     "bridge:dev": "tsx watch src/bridge/index.ts",
+    "admin": "tsx src/admin/index.ts",
+    "admin:dev": "tsx watch src/admin/index.ts",
     "ingest": "tsx src/scripts/ingest-once.ts",
     "resolve:youtube": "tsx src/scripts/resolve-youtube-handles.ts",
     "resolve:twitter": "tsx src/scripts/resolve-twitter-handles.ts",

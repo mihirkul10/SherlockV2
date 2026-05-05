@@ -9,6 +9,7 @@ mkdir -p "$TARGET"
 mkdir -p "$HOME/Library/Logs"
 
 JOBS=(
+  "com.sherlock.admin"
   "com.sherlock.context-sync"
   "com.sherlock.vault-sync"
   "com.sherlock.bridge"
