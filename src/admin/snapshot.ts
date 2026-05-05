@@ -5,7 +5,8 @@
  * needs to render: bridge health, active research, recent iMessage turns,
  * corpus size, source roster, ingestion-run history, and log tails.
  *
- * Read-only. Safe to call as often as the dashboard polls.
+ * Read-only. Safe to call as often as the dashboard polls. Does NOT depend
+ * on the bridge being up — reads sqlite and json files directly.
  */
 
 import Database from "better-sqlite3";
@@ -27,8 +28,6 @@ const BRIDGE_LOG = resolve(HOME, "Library", "Logs", "sherlock-bridge.log");
 const INDEXER_LOG = resolve(HOME, "Library", "Logs", "sherlock-indexer.log");
 const MCP_CTX_LOG = resolve(STATE_DIR, "mcp-context-search.log");
 
-// ─── Helpers ──────────────────────────────────────────────────────────
-
 function tailLines(path: string, n: number): string[] {
   if (!existsSync(path)) return [];
   try {
@@ -44,8 +43,6 @@ function safeStmt<T>(db: Database.Database, sql: string, ...params: unknown[]): 
 function safeAll<T>(db: Database.Database, sql: string, ...params: unknown[]): T[] {
   try { return db.prepare(sql).all(...params) as T[]; } catch { return []; }
 }
-
-// ─── Public state shape ───────────────────────────────────────────────
 
 export interface AdminSnapshot {
   generated_at: string;
@@ -95,8 +92,21 @@ export interface AdminSnapshot {
     blog?: Array<{ id?: string; url?: string; name?: string }>;
   };
   ingest_runs: Array<{
-    ts: string; type: string; ok: boolean;
-    items_added?: number; items_skipped?: number; items_failed?: number;
+    ts: string; type: string;
+    /** 'ok' | 'partial' | 'error' — preserves the producer's tri-state. */
+    status: "ok" | "partial" | "error";
+    /** True for ok/partial (the run succeeded; some items may simply have no transcript). */
+    ok: boolean;
+    items_added?: number;
+    /**
+     * Items where the source had nothing to ingest (e.g. YouTube videos with
+     * captions disabled). Counted by the producer as `errors` but it's normal
+     * — most channels have a few. Surfaced separately so the dashboard can
+     * tag it as info rather than a hard failure.
+     */
+    items_no_content?: number;
+    selector?: string;
+    duration_ms?: number;
     error?: string;
   }>;
   vault: {
@@ -110,15 +120,12 @@ export interface AdminSnapshot {
   };
 }
 
-// ─── Assembler ────────────────────────────────────────────────────────
-
 const t0 = Date.now();
 const myPid = process.pid;
 
 export function buildSnapshot(opts: { port: number }): AdminSnapshot {
   const now = Date.now();
 
-  // ─── research ──────────────────────────────────────────────────────
   let active: AdminSnapshot["research"]["active"] = [];
   let recent: AdminSnapshot["research"]["recent"] = [];
   let countsByStatus: Record<string, number> = {};
@@ -169,7 +176,6 @@ export function buildSnapshot(opts: { port: number }): AdminSnapshot {
     } finally { db.close(); }
   }
 
-  // ─── conversations ────────────────────────────────────────────────
   let chats: AdminSnapshot["conversations"]["chats"] = [];
   let recentMsgs: AdminSnapshot["conversations"]["recent_messages"] = [];
   if (existsSync(CONVERSATIONS_DB)) {
@@ -198,7 +204,6 @@ export function buildSnapshot(opts: { port: number }): AdminSnapshot {
     } finally { db.close(); }
   }
 
-  // ─── corpus ────────────────────────────────────────────────────────
   let corpus: AdminSnapshot["corpus"] = { total: 0, by_source: {} };
   if (existsSync(INDEX_DB)) {
     const db = new Database(INDEX_DB, { readonly: true, fileMustExist: true });
@@ -217,16 +222,11 @@ export function buildSnapshot(opts: { port: number }): AdminSnapshot {
     } finally { db.close(); }
   }
 
-  // ─── sources roster ────────────────────────────────────────────────
   const sources: AdminSnapshot["sources"] = { counts: {} };
   if (existsSync(SOURCES_JSON)) {
     try {
       const text = readFileSync(SOURCES_JSON, "utf-8");
       const j = JSON.parse(text) as Record<string, unknown>;
-      // sources.json actual shape (per repo):
-      //   { youtube: { channels: [...] }, twitter: { people: [...], bookmarks: [...] },
-      //     substack: { newsletters: [...] }, blog: { feeds: [...] } }
-      // Try all the plausible nestings to be resilient to schema drift.
       const pickArr = (...paths: string[][]): unknown[] | null => {
         for (const p of paths) {
           let cur: unknown = j;
@@ -249,7 +249,7 @@ export function buildSnapshot(opts: { port: number }): AdminSnapshot {
       const sub = pickArr(["substack", "newsletters"], ["substack"]);
       if (sub) { sources.counts["substack"] = sub.length; sources.substack = sub.slice(0, 60) as AdminSnapshot["sources"]["substack"]; }
 
-      const blog = pickArr(["blog", "feeds"], ["blog"]);
+      const blog = pickArr(["blogs", "feeds"], ["blog", "feeds"], ["blog"]);
       if (blog) { sources.counts["blog"] = blog.length; sources.blog = blog.slice(0, 60) as AdminSnapshot["sources"]["blog"]; }
 
       const bookmarks = pickArr(["twitter", "bookmarks"]);
@@ -257,42 +257,59 @@ export function buildSnapshot(opts: { port: number }): AdminSnapshot {
     } catch { /* ignore */ }
   }
 
-  // ─── ingest runs ───────────────────────────────────────────────────
   let ingestRuns: AdminSnapshot["ingest_runs"] = [];
   if (existsSync(CONTEXT_RUNS_LOG)) {
     try {
       const text = readFileSync(CONTEXT_RUNS_LOG, "utf-8");
       const lines = text.split("\n").filter((l) => l.length > 0);
-      const tail = lines.slice(-20).reverse(); // newest first
+      const tail = lines.slice(-20).reverse();
       ingestRuns = tail.map((line) => {
         try {
           const obj = JSON.parse(line) as Record<string, unknown>;
+          // The producer (sherlock-context ingestor) writes:
+          //   { runId, source, startedAt, finishedAt, durationMs, channelsProcessed,
+          //     newItems, errors, status: "ok"|"partial"|"error", selector? }
+          // The `errors` field is mostly transcript-unavailable counts for
+          // YouTube — those are normal (livestream / captions disabled).
+          // We map status → ok for true success, status="partial" → ok+info badge.
+          const rawStatus = String(obj["status"] ?? "").toLowerCase();
+          const status: "ok" | "partial" | "error" =
+            rawStatus === "ok" ? "ok" :
+            rawStatus === "partial" ? "partial" :
+            rawStatus === "error" ? "error" :
+            // Fallback for older log lines that used `ok: true|false`.
+            (obj["ok"] === true || obj["success"] === true) ? "ok" : "error";
           const out: AdminSnapshot["ingest_runs"][number] = {
-            ts: String(obj["ts"] ?? obj["timestamp"] ?? ""),
+            ts: String(obj["ts"] ?? obj["timestamp"] ?? obj["finishedAt"] ?? obj["startedAt"] ?? ""),
             type: String(obj["type"] ?? obj["source"] ?? "unknown"),
-            ok: Boolean(obj["ok"] ?? obj["success"] ?? false),
+            status,
+            ok: status !== "error",
           };
-          if (typeof obj["items_added"] === "number") out.items_added = obj["items_added"] as number;
-          if (typeof obj["items_skipped"] === "number") out.items_skipped = obj["items_skipped"] as number;
-          if (typeof obj["items_failed"] === "number") out.items_failed = obj["items_failed"] as number;
+          // newItems is the count of fresh items written to disk.
+          if (typeof obj["newItems"] === "number") out.items_added = obj["newItems"] as number;
+          else if (typeof obj["items_added"] === "number") out.items_added = obj["items_added"] as number;
+          // The producer's `errors` count for YouTube is overwhelmingly
+          // "transcript unavailable" — surface as items_no_content (info)
+          // not items_failed (red). For other sources where errors are
+          // genuinely failures, the run will already be status:"error".
+          if (typeof obj["errors"] === "number") out.items_no_content = obj["errors"] as number;
+          if (typeof obj["selector"] === "string") out.selector = obj["selector"] as string;
+          if (typeof obj["durationMs"] === "number") out.duration_ms = obj["durationMs"] as number;
           if (typeof obj["error"] === "string") out.error = obj["error"] as string;
           return out;
-        } catch { return { ts: "", type: "unparseable", ok: false }; }
+        } catch { return { ts: "", type: "unparseable", status: "error" as const, ok: false }; }
       });
     } catch { /* ignore */ }
   }
 
-  // ─── vault reports ─────────────────────────────────────────────────
   let recentReports: AdminSnapshot["vault"]["recent_reports"] = [];
   let reportsCount = 0;
   if (existsSync(VAULT_REPORTS_DIR)) {
     try {
       const allFiles: Array<{ name: string; path: string; modified_at: number; size: number }> = [];
-      // Walk Reports/<yyyy-mm>/*.md (one level deep is sufficient for our layout).
       const monthDirs = readdirSync(VAULT_REPORTS_DIR, { withFileTypes: true });
       for (const d of monthDirs) {
         if (!d.isDirectory()) continue;
-        // Skip _index.md and other non-month entries that aren't directories.
         const monthPath = resolve(VAULT_REPORTS_DIR, d.name);
         let entries: string[];
         try { entries = readdirSync(monthPath); } catch { continue; }
@@ -311,12 +328,18 @@ export function buildSnapshot(opts: { port: number }): AdminSnapshot {
     } catch { /* ignore */ }
   }
 
-  // ─── logs ──────────────────────────────────────────────────────────
   const logs = {
     bridge_tail: tailLines(BRIDGE_LOG, 50),
     indexer_tail: tailLines(INDEXER_LOG, 25),
     mcp_context_tail: tailLines(MCP_CTX_LOG, 25),
   };
+
+  // The "reports complete" stat that the dashboard surfaces should reflect
+  // what's actually in the user's Obsidian vault — that's the ground truth.
+  // The research_runs table sometimes lags (a run that wrote a report can
+  // still be marked 'running' if it crashed before finishfRun()), so we
+  // override the sqlite counter with the on-disk count.
+  countsByStatus["complete"] = Math.max(countsByStatus["complete"] ?? 0, reportsCount);
 
   return {
     generated_at: new Date().toISOString(),

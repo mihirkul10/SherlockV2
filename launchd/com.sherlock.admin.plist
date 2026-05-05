@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.sherlock.admin</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>source $HOME/.nvm/nvm.sh &amp;&amp; cd /Users/sherlockkulkarni/Projects/SherlockV2 &amp;&amp; npm run admin 2&gt;&amp;1</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Always alive: this is the panic button. KeepAlive=true means launchd
+         restarts it after any exit, including a successful one. Survives
+         sleep/wake; only the user (via uninstall.sh / bootout) can stop it. -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/sherlockkulkarni/Library/Logs/sherlock-admin.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/sherlockkulkarni/Library/Logs/sherlock-admin.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/sherlockkulkarni</string>
+        <key>NODE_ENV</key>
+        <string>production</string>
+    </dict>
+</dict>
+</plist>
