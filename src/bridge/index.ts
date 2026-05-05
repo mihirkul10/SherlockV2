@@ -22,12 +22,15 @@
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { loadEnv, optionalEnv } from "../shared/env.js";
 import { createLogger } from "../shared/logger.js";
-import { parseWebhook, sendIMessageChunked, registerWebhook } from "./bluebubbles.js";
-import { appendMessage, recentRuns, startRun, setRunIds, finishRun } from "./conversation.js";
+import { sendIMessageChunked } from "./imessage-sender.js";
+import { IMessagePoller, type PolledMessage } from "./imessage-poller.js";
+import { appendMessage, recentRuns, startRun, setRunIds, finishRun, hasMessageId } from "./conversation.js";
 import { runFrontTurn } from "./front-runner.js";
 // Importing researcher-runner registers the spawner with the job-manager (side effect).
 import "./researcher-runner.js";
 import { snapshot, cancelRun, recoverOrphans } from "./job-manager.js";
+import { buildSnapshot } from "./admin-state.js";
+import { ADMIN_HTML } from "./admin-html.js";
 
 loadEnv();
 const log = createLogger("bridge");
@@ -37,6 +40,13 @@ const PORT = parseInt(optionalEnv("BRIDGE_PORT") ?? "18790", 10);
 // ─── Inbound handler ──────────────────────────────────────────────────
 
 async function handleInbound(args: { chat_guid: string; from: string; text: string; message_id?: string }): Promise<void> {
+  // Idempotency: skip if we've already processed this exact message GUID.
+  // Protects against duplicate dispatches from multiple inbound transports
+  // (e.g. the chat.db poller AND a stale BB webhook firing for the same msg).
+  if (args.message_id && hasMessageId(args.message_id)) {
+    log.info({ message_id: args.message_id, chat_guid: args.chat_guid }, "duplicate inbound — skipping");
+    return;
+  }
   const runRow = startRun(args.chat_guid);
   appendMessage({
     chat_guid: args.chat_guid,
@@ -157,13 +167,22 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  // (BlueBubbles webhook removed — inbound now via IMessagePoller polling
+  // chat.db directly. The endpoint stays available for synthetic testing.)
   if (req.method === "POST" && url === "/webhook/bluebubbles") {
     try {
       const body = await readJsonBody(req) as Record<string, unknown>;
-      const incoming = parseWebhook(body);
-      if (incoming) {
-        // Don't await — return 200 immediately so BlueBubbles doesn't retry.
-        handleInbound({ chat_guid: incoming.chatGuid, from: incoming.from, text: incoming.text, message_id: incoming.messageId })
+      // Accept the same payload shape so synthetic test pokes still work.
+      const data = (body["data"] as Record<string, unknown> | undefined) ?? {};
+      const text = (data["text"] as string) ?? "";
+      const isFromMe = data["is_from_me"] === true || data["isFromMe"] === true;
+      const handle = data["handle"] as Record<string, unknown> | undefined;
+      const from = (handle?.["address"] as string) ?? (data["address"] as string) ?? "";
+      const chats = data["chats"] as Array<Record<string, unknown>> | undefined;
+      const chatGuid = (chats?.[0]?.["guid"] as string) ?? `iMessage;-;${from}`;
+      const messageId = String(data["guid"] ?? data["id"] ?? Date.now());
+      if (text.trim() && from && !isFromMe) {
+        handleInbound({ chat_guid: chatGuid, from, text, message_id: messageId })
           .catch((err) => log.error({ err: err instanceof Error ? err.message : String(err) }, "handleInbound rejected"));
       }
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -202,6 +221,25 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  // ─── Admin dashboard (live, polled by browser every 3s) ──────────────
+  if (req.method === "GET" && (url === "/admin" || url === "/admin/")) {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(ADMIN_HTML);
+    return;
+  }
+  if (req.method === "GET" && url === "/admin/state") {
+    try {
+      const snap = buildSnapshot({ port: PORT });
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      res.end(JSON.stringify(snap));
+    } catch (err) {
+      log.error({ err: err instanceof Error ? err.message : String(err) }, "admin snapshot failed");
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+    }
+    return;
+  }
+
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ ok: false, error: "not found" }));
 }
@@ -218,19 +256,34 @@ const server = createServer((req, res) => {
   });
 });
 
+// Poller is module-scoped so the SIGTERM handler can stop it cleanly.
+const poller = new IMessagePoller({
+  intervalMs: 1000,
+  onMessage: (msg: PolledMessage): Promise<void> => {
+    // Map PolledMessage → handleInbound's args. We discard messages that
+    // already exist in conversations.sqlite (handled implicitly by appendMessage's
+    // upsert-by-message_id, but we also dedupe here as a belt-and-suspenders).
+    return handleInbound({
+      chat_guid: msg.chat_guid,
+      from: msg.sender,
+      text: msg.text,
+      message_id: msg.guid,
+    });
+  },
+});
+
 server.listen(PORT, "127.0.0.1", () => {
   log.info({ port: PORT, pid: process.pid }, "bridge listening");
   // Recover orphaned researchers from a previous bridge crash.
   const recovered = recoverOrphans();
   if (recovered > 0) log.warn({ count: recovered }, "marked previously-running researchers as error");
-  // Self-register the BlueBubbles webhook (best-effort; OK if it fails).
-  registerWebhook(`http://localhost:${PORT}/webhook/bluebubbles`).catch((err) =>
-    log.warn({ err: err instanceof Error ? err.message : String(err) }, "BlueBubbles webhook self-registration failed")
-  );
+  // Start the chat.db poller. Requires Full Disk Access for this node binary.
+  poller.start();
 });
 
 const shutdown = (signal: string): void => {
   log.info({ signal }, "shutting down");
+  poller.stop();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 5000).unref();
 };

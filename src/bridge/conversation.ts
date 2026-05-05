@@ -37,6 +37,13 @@ export function getConversationDb(): DB {
       run_id      TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_messages_chat_ts ON messages(chat_guid, ts DESC);
+    -- Plain (non-unique) index on message_id for fast hasMessageId() lookups.
+    -- We don't enforce uniqueness here because (a) hasMessageId() in code
+    -- already prevents duplicate inserts, and (b) a UNIQUE INDEX would fail
+    -- to create on databases where historic dupes exist (older runs without
+    -- the idempotency check), which would break the entire DB open.
+    CREATE INDEX IF NOT EXISTS idx_messages_message_id
+      ON messages(message_id) WHERE message_id IS NOT NULL;
 
     CREATE TABLE IF NOT EXISTS imessage_runs (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,6 +102,16 @@ export function appendMessage(args: {
     run_id: args.run_id ?? null,
   });
   return Number(info.lastInsertRowid);
+}
+
+/** Returns true if a message with this message_id has already been stored.
+ *  Used by handleInbound to skip duplicate inbound dispatches when both
+ *  transports (chat.db poller + a residual BB webhook) detect the same msg. */
+export function hasMessageId(message_id: string): boolean {
+  if (!message_id) return false;
+  const d = getConversationDb();
+  const row = d.prepare("SELECT 1 FROM messages WHERE message_id = ? LIMIT 1").get(message_id);
+  return !!row;
 }
 
 export function recentMessages(chat_guid: string, limit = 20): StoredMessage[] {
