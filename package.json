@@ -24,6 +24,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.93.0",
     "@cursor/sdk": "^1.0.12",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "apify-client": "^2.12.6",

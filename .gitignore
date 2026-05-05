@@ -3,10 +3,12 @@ dist/
 *.log
 .DS_Store
 
-# Local-only state databases (never commit)
+# Local-only runtime state (never commit)
 state/*.sqlite
 state/*.sqlite-wal
 state/*.sqlite-shm
+state/*.log
+state/*-state.json
 
 # Local clones of the data repos (cloned at sibling paths via launchd jobs)
 sherlock-context/

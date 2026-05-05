@@ -58,11 +58,9 @@ export function formatForIMessage(text: string): string[] {
 
 // ─── Send a message via BlueBubbles ─────────────────────────────────
 
-export async function sendIMessage(chatGuid: string, text: string): Promise<boolean> {
-  if (!bbPwd()) {
-    log.warn("BLUEBUBBLES_PASSWORD not set; can't send");
-    return false;
-  }
+// Single-attempt send. AppleScript path on macOS Tahoe can take 30s+ on a
+// cold cache, so we use a generous timeout and let the caller wrap with retry.
+async function sendOnce(chatGuid: string, text: string, timeoutMs: number): Promise<{ ok: boolean; err?: string; status?: number }> {
   const url = `${bbUrl()}/api/v1/message/text?password=${encodeURIComponent(bbPwd())}`;
   try {
     const res = await fetch(url, {
@@ -74,18 +72,42 @@ export async function sendIMessage(chatGuid: string, text: string): Promise<bool
         tempGuid: `sherlock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         method: "apple-script",
       }),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
-    if (res.ok) {
-      log.info({ chatGuid, len: text.length }, "iMessage sent");
-      return true;
-    }
-    log.error({ chatGuid, status: res.status, body: await res.text() }, "Send failed");
-    return false;
+    if (res.ok) return { ok: true };
+    return { ok: false, status: res.status, err: await res.text() };
   } catch (err) {
-    log.error({ chatGuid, err: err instanceof Error ? err.message : String(err) }, "Send error");
+    return { ok: false, err: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function sendIMessage(chatGuid: string, text: string): Promise<boolean> {
+  if (!bbPwd()) {
+    log.warn("BLUEBUBBLES_PASSWORD not set; can't send");
     return false;
   }
+  // First attempt: 60s. AppleScript send to Messages.app on Tahoe is often
+  // 8-12s on warm path but can spike to 25-40s. The old 15s cap was too tight.
+  const first = await sendOnce(chatGuid, text, 60_000);
+  if (first.ok) {
+    log.info({ chatGuid, len: text.length }, "iMessage sent");
+    return true;
+  }
+  log.warn(
+    { chatGuid, status: first.status, err: first.err, attempt: 1 },
+    "send failed; retrying once"
+  );
+  // One retry. Many transient AppleScript timeouts succeed on the second try.
+  const second = await sendOnce(chatGuid, text, 60_000);
+  if (second.ok) {
+    log.info({ chatGuid, len: text.length, attempt: 2 }, "iMessage sent on retry");
+    return true;
+  }
+  log.error(
+    { chatGuid, status: second.status, err: second.err },
+    "send failed after retry"
+  );
+  return false;
 }
 
 export async function sendIMessageChunked(chatGuid: string, text: string): Promise<boolean> {
