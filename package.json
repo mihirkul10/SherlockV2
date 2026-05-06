@@ -22,6 +22,7 @@
     "reindex": "tsx src/scripts/reindex.ts",
     "indexer": "tsx src/scripts/indexer.ts",
     "indexer:dev": "tsx watch src/scripts/indexer.ts",
+    "index:cloud": "tsx src/scripts/index-cloud.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
