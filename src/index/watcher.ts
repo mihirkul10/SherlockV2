@@ -1,7 +1,7 @@
 /**
- * Chokidar-based incremental indexer. Watches sherlock-context/_raw for
- * Markdown additions/modifications/deletions and keeps the SQLite FTS5
- * index in sync without a full rebuild.
+ * Chokidar-based incremental fallback indexer. Watches sherlock-context/_raw
+ * for Markdown additions/modifications/deletions and keeps the legacy local
+ * SQLite FTS5 index in sync without a full rebuild.
  *
  * Lifecycle:
  *   1. On startup, do a one-time bulk reindex (cheap; ~thousands of files

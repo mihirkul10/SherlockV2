@@ -111,6 +111,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         sources_focus?: string[];
         urgency?: "low" | "normal" | "high";
         notes?: string;
+        index_brief?: string;
+        followup_questions?: string[];
         parent_msg_id?: string;
       };
       if (!body.topic || !body.chat_guid) {
@@ -128,6 +130,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           ...(body.sources_focus && { sources_focus: body.sources_focus }),
           urgency: body.urgency ?? "normal",
           ...(body.notes && { notes: body.notes }),
+          ...(body.index_brief && { index_brief: body.index_brief }),
+          ...(body.followup_questions?.length ? { followup_questions: body.followup_questions } : {}),
         },
         ...(body.parent_msg_id && { parent_msg_id: body.parent_msg_id }),
       });

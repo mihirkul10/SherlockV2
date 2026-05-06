@@ -10,10 +10,11 @@ mkdir -p "$HOME/Library/Logs"
 
 JOBS=(
   "com.sherlock.admin"
+  "com.sherlock.context-api"
   "com.sherlock.context-sync"
+  "com.sherlock.context-index-sync"
   "com.sherlock.vault-sync"
   "com.sherlock.bridge"
-  "com.sherlock.indexer"
 )
 
 for job in "${JOBS[@]}"; do

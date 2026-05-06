@@ -55,6 +55,8 @@ const StartInput = z.object({
   sources_focus: z.array(z.string()).optional(),
   urgency: z.enum(["low", "normal", "high"]).default("normal"),
   notes: z.string().optional(),
+  index_brief: z.string().optional(),
+  followup_questions: z.array(z.string()).optional(),
   chat_guid: z.string().optional(),
   parent_msg_id: z.string().optional(),
 });
@@ -84,6 +86,8 @@ async function main(): Promise<void> {
             sources_focus: { type: "array", items: { type: "string" }, description: "Optional preferred sources: ['youtube','substack','twitter-people','web']." },
             urgency: { type: "string", enum: ["low", "normal", "high"], default: "normal" },
             notes: { type: "string", description: "Anything else the user said about how they want this approached." },
+            index_brief: { type: "string", description: "Structured recommendation or corpus brief produced by context.brief / context.followups." },
+            followup_questions: { type: "array", items: { type: "string" }, description: "Candidate forks discovered from the shared index that the Researcher should pressure-test." },
             chat_guid: { type: "string", description: defaultChatGuid ? `Defaults to ${defaultChatGuid}` : "Required" },
             parent_msg_id: { type: "string" },
           },

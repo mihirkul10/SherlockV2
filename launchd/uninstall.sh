@@ -5,7 +5,9 @@ set -euo pipefail
 TARGET="$HOME/Library/LaunchAgents"
 JOBS=(
   "com.sherlock.admin"
+  "com.sherlock.context-api"
   "com.sherlock.context-sync"
+  "com.sherlock.context-index-sync"
   "com.sherlock.vault-sync"
   "com.sherlock.bridge"
   "com.sherlock.indexer"

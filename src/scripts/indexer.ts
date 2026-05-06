@@ -1,10 +1,14 @@
 /**
- * Long-running indexer process — performs an initial cold-rebuild of the
- * SQLite FTS5 index from sherlock-context/_raw, then watches for changes via
- * chokidar and incrementally upserts.
+ * Long-running fallback indexer process — performs an initial cold-rebuild of
+ * the local SQLite FTS5 index from sherlock-context/_raw, then watches for
+ * changes via chokidar and incrementally upserts.
+ *
+ * Used for:
+ *   - offline / emergency fallback when the shared retrieval API is unavailable
+ *   - local smoke tests that still exercise the legacy Mac-local index
  *
  * Started by:  npm run indexer       (foreground / dev)
- *              launchctl load com.sherlock.indexer.plist  (production)
+ *              launchctl load com.sherlock.indexer.plist  (fallback production)
  *
  * Logs to stdout (pino-pretty in dev). On signal, closes the watcher and exits.
  */

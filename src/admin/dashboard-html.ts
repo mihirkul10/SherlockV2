@@ -220,7 +220,7 @@ async function clickMaster() {
   const action = btn.dataset.action;
   if (!action) return;
   const verb = action === "stop" ? "Stop" : "Start";
-  if (!confirm(verb + " Sherlock — " + verb.toLowerCase() + " all four services?")) return;
+  if (!confirm(verb + " Sherlock — " + verb.toLowerCase() + " all primary services?")) return;
   btn.disabled = true;
   btn.textContent = (action === "stop" ? "Stopping…" : "Starting…");
   const result = document.getElementById("masterResult");

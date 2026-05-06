@@ -1,7 +1,7 @@
 /**
  * launchctl wrapper for the master Start/Stop Sherlock button.
  *
- * Controls the four Sherlock launchd services. The admin's own label
+ * Controls Sherlock's primary launchd services. The admin's own label
  * (com.sherlock.admin) is intentionally NOT in the allow-list, so the
  * UI can never bootout itself.
  *
@@ -21,12 +21,13 @@ const execFileP = promisify(execFile);
 const HOME = homedir();
 const LAUNCHAGENTS = resolve(HOME, "Library", "LaunchAgents");
 
-/** The four services the master button controls. Order = start order. */
+/** The primary services the master button controls. Order = start order. */
 export const SHERLOCK_SERVICES = [
+  "com.sherlock.context-api",
   "com.sherlock.context-sync",
+  "com.sherlock.context-index-sync",
   "com.sherlock.vault-sync",
   "com.sherlock.bridge",
-  "com.sherlock.indexer",
 ] as const;
 
 export type ServiceLabel = (typeof SHERLOCK_SERVICES)[number];
@@ -99,7 +100,7 @@ export interface AllStatus {
 }
 
 /**
- * Status of all four Sherlock services + a summary state for the button.
+ * Status of all primary Sherlock services + a summary state for the button.
  *
  * Note on "running": context-sync and vault-sync are StartInterval cron jobs
  * (fire every 60s, exit, idle). They're "loaded" continuously but only
