@@ -89,12 +89,29 @@ async function buildDocuments(paths: string[]): Promise<PreparedDocument[]> {
   return docs;
 }
 
-async function upsertInBatches(documents: PreparedDocument[], batchSize = 8): Promise<number> {
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function postBatchWithRetry(documents: PreparedDocument[], attempts = 3): Promise<{ changed_chunks?: number }> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const payload = UpsertDocumentsRequestSchema.parse({ documents });
+      return await postJson<{ changed_chunks?: number }>("/admin/upsert-docs", payload);
+    } catch (err) {
+      lastError = err;
+      if (attempt < attempts) await sleep(500 * attempt);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+async function upsertInBatches(documents: PreparedDocument[], batchSize = 1): Promise<number> {
   let changedChunks = 0;
   for (let i = 0; i < documents.length; i += batchSize) {
     const batch = documents.slice(i, i + batchSize);
-    const payload = UpsertDocumentsRequestSchema.parse({ documents: batch });
-    const response = await postJson<{ changed_chunks?: number }>("/admin/upsert-docs", payload);
+    const response = await postBatchWithRetry(batch);
     changedChunks += response.changed_chunks ?? 0;
   }
   return changedChunks;
@@ -107,6 +124,7 @@ async function main(): Promise<number> {
   let changedDocs = 0;
   let changedChunks = 0;
   let deletedDocs = 0;
+  const batchSize = Math.max(1, parseInt(process.env["SHERLOCK_CONTEXT_UPSERT_BATCH_SIZE"] ?? "1", 10));
 
   try {
     const manifest = await loadManifest();
@@ -116,7 +134,7 @@ async function main(): Promise<number> {
     if (diff.upsert_paths.length > 0) {
       const documents = await buildDocuments(diff.upsert_paths);
       changedDocs = documents.length;
-      changedChunks = await upsertInBatches(documents);
+      changedChunks = await upsertInBatches(documents, batchSize);
     }
     if (diff.delete_paths.length > 0) {
       const payload = DeleteDocumentsRequestSchema.parse({ paths: diff.delete_paths });
