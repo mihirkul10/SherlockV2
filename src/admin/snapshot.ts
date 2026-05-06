@@ -16,6 +16,7 @@ import {
   CONVERSATIONS_DB,
   RESEARCH_RUNS_DB,
   INDEX_DB,
+  SHARED_INDEX_DB,
   CONTEXT_RUNS_LOG,
   SOURCES_JSON,
   STATE_DIR,
@@ -25,8 +26,14 @@ import { homedir } from "node:os";
 
 const HOME = homedir();
 const BRIDGE_LOG = resolve(HOME, "Library", "Logs", "sherlock-bridge.log");
+const CONTEXT_API_LOG = resolve(HOME, "Library", "Logs", "sherlock-context-api.log");
+const CONTEXT_INDEX_SYNC_LOG = resolve(HOME, "Library", "Logs", "sherlock-context-index-sync.log");
 const INDEXER_LOG = resolve(HOME, "Library", "Logs", "sherlock-indexer.log");
 const MCP_CTX_LOG = resolve(STATE_DIR, "mcp-context-search.log");
+
+function preferredCorpusDbPath(): string {
+  return existsSync(SHARED_INDEX_DB) ? SHARED_INDEX_DB : INDEX_DB;
+}
 
 function tailLines(path: string, n: number): string[] {
   if (!existsSync(path)) return [];
@@ -115,6 +122,8 @@ export interface AdminSnapshot {
   };
   logs: {
     bridge_tail: string[];
+    context_api_tail: string[];
+    context_index_sync_tail: string[];
     indexer_tail: string[];
     mcp_context_tail: string[];
   };
@@ -205,18 +214,29 @@ export function buildSnapshot(opts: { port: number }): AdminSnapshot {
   }
 
   let corpus: AdminSnapshot["corpus"] = { total: 0, by_source: {} };
-  if (existsSync(INDEX_DB)) {
-    const db = new Database(INDEX_DB, { readonly: true, fileMustExist: true });
+  const corpusDbPath = preferredCorpusDbPath();
+  if (existsSync(corpusDbPath)) {
+    const db = new Database(corpusDbPath, { readonly: true, fileMustExist: true });
     try {
-      const total = safeStmt<{ n: number }>(db, `SELECT COUNT(*) n FROM docs`);
-      const bySource = safeAll<{ source: string; n: number }>(db,
-        `SELECT source, COUNT(*) n FROM docs GROUP BY source`);
-      corpus = {
-        total: total?.n ?? 0,
-        by_source: Object.fromEntries(bySource.map((r) => [r.source, r.n])),
-      };
+      if (corpusDbPath === SHARED_INDEX_DB) {
+        const total = safeStmt<{ n: number }>(db, `SELECT COUNT(*) n FROM documents`);
+        const bySource = safeAll<{ source: string; n: number }>(db,
+          `SELECT source, COUNT(*) n FROM documents GROUP BY source`);
+        corpus = {
+          total: total?.n ?? 0,
+          by_source: Object.fromEntries(bySource.map((r) => [r.source, r.n])),
+        };
+      } else {
+        const total = safeStmt<{ n: number }>(db, `SELECT COUNT(*) n FROM docs`);
+        const bySource = safeAll<{ source: string; n: number }>(db,
+          `SELECT source, COUNT(*) n FROM docs GROUP BY source`);
+        corpus = {
+          total: total?.n ?? 0,
+          by_source: Object.fromEntries(bySource.map((r) => [r.source, r.n])),
+        };
+      }
       try {
-        const stat = statSync(INDEX_DB);
+        const stat = statSync(corpusDbPath);
         corpus.last_indexed_at = stat.mtime.toISOString();
       } catch { /* ignore */ }
     } finally { db.close(); }
@@ -330,6 +350,8 @@ export function buildSnapshot(opts: { port: number }): AdminSnapshot {
 
   const logs = {
     bridge_tail: tailLines(BRIDGE_LOG, 50),
+    context_api_tail: tailLines(CONTEXT_API_LOG, 25),
+    context_index_sync_tail: tailLines(CONTEXT_INDEX_SYNC_LOG, 25),
     indexer_tail: tailLines(INDEXER_LOG, 25),
     mcp_context_tail: tailLines(MCP_CTX_LOG, 25),
   };

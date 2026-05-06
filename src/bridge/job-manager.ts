@@ -45,6 +45,8 @@ export interface ResearchScope {
   sources_focus?: string[];
   urgency?: "low" | "normal" | "high";
   notes?: string;
+  index_brief?: string;
+  followup_questions?: string[];
 }
 
 export interface ResearchRun {
