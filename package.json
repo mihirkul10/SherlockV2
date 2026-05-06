@@ -20,6 +20,7 @@
     "list:models": "tsx src/scripts/list-models.ts",
     "seed:sources": "tsx src/scripts/seed-sources.ts",
     "reindex": "tsx src/scripts/reindex.ts",
+    "index:cloud": "tsx src/scripts/index-cloud.ts",
     "indexer": "tsx src/scripts/indexer.ts",
     "indexer:dev": "tsx watch src/scripts/indexer.ts",
     "test": "vitest run",
