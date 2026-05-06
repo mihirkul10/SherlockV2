@@ -19,7 +19,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { mkdirSync, writeFileSync, existsSync, readFileSync, appendFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync, appendFileSync, readdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { execFile } from "node:child_process";
@@ -60,8 +60,25 @@ interface InProgressSection {
   citations?: Citation[];
 }
 
+type FrontmatterValue =
+  | string
+  | number
+  | boolean
+  | string[]
+  | number[]
+  | boolean[];
+
+interface FinalizeState {
+  absPath: string;
+  finishedAt: number;
+}
+
 function sectionsPath(research_id: number): string {
   return resolve(tmpdir(), `sherlock-research-${research_id}-sections.json`);
+}
+
+function finalizeStatePath(research_id: number): string {
+  return resolve(tmpdir(), `sherlock-research-${research_id}-finalize.json`);
 }
 
 function loadSections(research_id: number): InProgressSection[] {
@@ -72,6 +89,22 @@ function loadSections(research_id: number): InProgressSection[] {
 
 function saveSections(research_id: number, sections: InProgressSection[]): void {
   writeFileSync(sectionsPath(research_id), JSON.stringify(sections, null, 2), "utf-8");
+}
+
+function loadFinalizeState(research_id: number): FinalizeState | null {
+  const p = finalizeStatePath(research_id);
+  if (!existsSync(p)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(p, "utf-8")) as Partial<FinalizeState>;
+    if (typeof parsed.absPath !== "string" || typeof parsed.finishedAt !== "number") return null;
+    return { absPath: parsed.absPath, finishedAt: parsed.finishedAt };
+  } catch {
+    return null;
+  }
+}
+
+function saveFinalizeState(research_id: number, state: FinalizeState): void {
+  writeFileSync(finalizeStatePath(research_id), JSON.stringify(state, null, 2), "utf-8");
 }
 
 // ─── Schemas ───────────────────────────────────────────────────────────
@@ -122,7 +155,14 @@ const FinalizeInput = z.object({
     citations: z.array(CitationInputSchema).optional(),
   })).optional().describe("If you didn't use write_section, you can pass all sections inline here."),
   status: z.enum(["complete", "partial"]).default("complete"),
-  frontmatter: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional()
+  frontmatter: z.record(z.string(), z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.array(z.string()),
+    z.array(z.number()),
+    z.array(z.boolean()),
+  ])).optional()
     .describe("Optional extra frontmatter key-value pairs."),
 });
 
@@ -242,7 +282,7 @@ function renderReport(args: {
   status: "complete" | "partial";
   startedAt: number;
   finishedAt: number;
-  extras?: Record<string, string | number | boolean>;
+  extras?: Record<string, FrontmatterValue>;
 }): string {
   const { global, perSection } = buildGlobalCitations(args.sections);
 
@@ -319,13 +359,13 @@ function updateReportsIndex(args: { title: string; absPath: string; finishedAt: 
   // (Walk Reports/<yyyy-mm>/*.md.)
   const reportEntries: Array<{ date: string; title: string; rel: string }> = [];
   if (existsSync(VAULT_REPORTS_DIR)) {
-    const monthDirs = require("node:fs").readdirSync(VAULT_REPORTS_DIR)
+    const monthDirs = readdirSync(VAULT_REPORTS_DIR)
       .filter((n: string) => /^\d{4}-\d{2}$/.test(n))
       .sort()
       .reverse();
     for (const md of monthDirs) {
       const dirPath = resolve(VAULT_REPORTS_DIR, md);
-      const files = require("node:fs").readdirSync(dirPath).filter((n: string) => n.endsWith(".md")).sort().reverse();
+      const files = readdirSync(dirPath).filter((n: string) => n.endsWith(".md")).sort().reverse();
       for (const f of files) {
         const m = f.match(/^(\d{4}-\d{2}-\d{2})-\d{4}-(.+)\.md$/);
         if (!m) continue;
@@ -503,7 +543,8 @@ async function main(): Promise<void> {
       if (name === "report.finalize") {
         const a = FinalizeInput.parse(rawArgs ?? {});
         const startedAt = startedAtById.get(a.research_id) ?? Date.now() - 1000;
-        const finishedAt = Date.now();
+        const priorFinalize = loadFinalizeState(a.research_id);
+        const finishedAt = priorFinalize?.finishedAt ?? Date.now();
         const accumulated = loadSections(a.research_id);
         // Inline sections override / supplement accumulated ones.
         const sections: InProgressSection[] = [
@@ -528,13 +569,14 @@ async function main(): Promise<void> {
           status: a.status,
           startedAt,
           finishedAt,
-          ...(a.frontmatter && { extras: a.frontmatter as Record<string, string | number | boolean> }),
+          ...(a.frontmatter && { extras: a.frontmatter as Record<string, FrontmatterValue> }),
         });
-        const absPath = reportPath(a.title, finishedAt);
+        const absPath = priorFinalize?.absPath ?? reportPath(a.title, finishedAt);
         mkdirSync(dirname(absPath), { recursive: true });
         writeFileSync(absPath, md, "utf-8");
+        saveFinalizeState(a.research_id, { absPath, finishedAt });
         updateReportsIndex({ title: a.title, absPath, finishedAt });
-        diag(`FINALIZE research_id=${a.research_id} path=${absPath} bytes=${md.length}`);
+        diag(`FINALIZE research_id=${a.research_id} path=${absPath} bytes=${md.length} reused=${priorFinalize ? "yes" : "no"}`);
 
         try {
           await gitCommitPush(absPath, a.title, a.research_id);

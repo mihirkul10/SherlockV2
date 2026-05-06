@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sherlock — A personal research analyst (Mihir · Rogo PM Review)</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<style>
+/* ============================================================
+   THEME — Bold Signal (dark gradient + orange focal accent)
+   ============================================================ */
+:root {
+    --bg-base:   #0f0f10;
+    --bg-grad:   radial-gradient(1200px 800px at 18% 8%, #232325 0%, #15151a 50%, #0a0a0c 100%);
+    --card-bg:   #FF5722;
+    --on-card:   #15110d;
+    --ink:       #f6f3ee;
+    --ink-mute:  #b8b4ad;
+    --ink-dim:   #76726b;
+    --rule:      rgba(246, 243, 238, 0.10);
+    --rule-bold: rgba(246, 243, 238, 0.22);
+
+    --font-display: "Archivo Black", "Space Grotesk", system-ui, sans-serif;
+    --font-body:    "Space Grotesk", system-ui, sans-serif;
+    --font-mono:    "JetBrains Mono", ui-monospace, monospace;
+
+    /* All sizes use clamp() — viewport-fit at any height */
+    --hero-size:   clamp(1.7rem, 4.6vw, 4rem);
+    --title-size:  clamp(1.2rem, 2.8vw, 2.2rem);
+    --eyebrow-sz:  clamp(0.62rem, 0.8vw, 0.85rem);
+    --body-size:   clamp(0.72rem, 1vw, 1rem);
+    --small-size:  clamp(0.62rem, 0.78vw, 0.82rem);
+    --mono-size:   clamp(0.65rem, 0.85vw, 0.88rem);
+    --micro-size:  clamp(0.55rem, 0.7vw, 0.72rem);
+
+    --slide-pad:   clamp(0.9rem, 2.4vw, 2.6rem);
+    --gap-lg:      clamp(0.6rem, 1.2vw, 1.4rem);
+    --gap:         clamp(0.4rem, 0.8vw, 0.9rem);
+    --gap-sm:      clamp(0.25rem, 0.5vw, 0.55rem);
+
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow-x: hidden; background: var(--bg-base); color: var(--ink); }
+html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+body {
+    font-family: var(--font-body);
+    font-size: var(--body-size);
+    line-height: 1.42;
+    background: var(--bg-grad), var(--bg-base);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   SLIDE — exact viewport, grid-locked rows, never scrolls
+   ============================================================ */
+.slide {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    scroll-snap-align: start;
+    position: relative;
+    padding: var(--slide-pad);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    row-gap: var(--gap);
+}
+
+/* film grain overlay for depth */
+.slide::after {
+    content: "";
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 3px 3px;
+    mix-blend-mode: overlay;
+    opacity: 0.45;
+    z-index: 0;
+}
+.slide > * { position: relative; z-index: 1; }
+
+/* ============================================================
+   CHROME (top breadcrumb + bottom footer)
+   ============================================================ */
+.chrome-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--ink-mute);
+    font-size: var(--small-size);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+}
+.chrome-top .num {
+    font-family: var(--font-display);
+    font-size: clamp(0.85rem, 1.2vw, 1.1rem);
+    color: var(--card-bg);
+    letter-spacing: 0.06em;
+}
+.chrome-top .crumbs {
+    display: flex;
+    gap: clamp(0.4rem, 1vw, 1.1rem);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+.crumb { color: var(--ink-dim); white-space: nowrap; }
+.crumb.active { color: var(--ink); }
+.crumb .n { color: var(--card-bg); margin-right: 0.3em; font-family: var(--font-display); }
+
+.chrome-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--ink-dim);
+    font-size: var(--small-size);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.chrome-bottom .left { font-family: var(--font-mono); }
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+.eyebrow {
+    display: inline-block;
+    font-family: var(--font-display);
+    font-size: var(--eyebrow-sz);
+    color: var(--card-bg);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+.h-display {
+    font-family: var(--font-display);
+    font-size: var(--hero-size);
+    line-height: 1.02;
+    letter-spacing: -0.012em;
+    color: var(--ink);
+}
+.h-2 {
+    font-family: var(--font-display);
+    font-size: var(--title-size);
+    line-height: 1.06;
+    color: var(--ink);
+}
+.lede {
+    color: var(--ink-mute);
+    font-size: clamp(0.85rem, 1.2vw, 1.2rem);
+    max-width: 64ch;
+    line-height: 1.4;
+}
+.mono { font-family: var(--font-mono); font-size: var(--mono-size); }
+.dim { color: var(--ink-dim); }
+.mute { color: var(--ink-mute); }
+
+/* ============================================================
+   ANIMATIONS — staggered reveal
+   ============================================================ */
+.reveal {
+    opacity: 0; transform: translateY(20px);
+    transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+}
+.slide.visible .reveal { opacity: 1; transform: translateY(0); }
+.slide.visible .reveal:nth-child(1)  { transition-delay: 0.05s; }
+.slide.visible .reveal:nth-child(2)  { transition-delay: 0.13s; }
+.slide.visible .reveal:nth-child(3)  { transition-delay: 0.21s; }
+.slide.visible .reveal:nth-child(4)  { transition-delay: 0.29s; }
+.slide.visible .reveal:nth-child(5)  { transition-delay: 0.37s; }
+.slide.visible .reveal:nth-child(6)  { transition-delay: 0.45s; }
+
+/* ============================================================
+   PROGRESS + NAV
+   ============================================================ */
+.progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 200; background: rgba(255,255,255,0.04); }
+.progress-fill { height: 100%; width: 0%; background: var(--card-bg); transition: width 0.2s linear; }
+.nav-dots {
+    position: fixed; right: clamp(0.6rem, 1.2vw, 1.2rem); top: 50%;
+    transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 0.6rem;
+    z-index: 200;
+}
+.nav-dots button {
+    width: 9px; height: 9px;
+    border: 1px solid rgba(255,255,255,0.35);
+    background: transparent; border-radius: 50%;
+    cursor: pointer; padding: 0;
+    transition: all 0.25s ease;
+}
+.nav-dots button.active { background: var(--card-bg); border-color: var(--card-bg); transform: scale(1.4); }
+.nav-dots button:hover { border-color: var(--card-bg); }
+
+/* ============================================================
+   PRIMITIVES
+   ============================================================ */
+
+/* Generic body cell — used inside grid layouts */
+.body-grid {
+    display: grid;
+    gap: var(--gap-lg);
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* The orange focal card */
+.focal {
+    background: var(--card-bg);
+    color: var(--on-card);
+    border-radius: clamp(8px, 0.9vw, 14px);
+    padding: clamp(0.9rem, 1.6vw, 1.6rem);
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    min-height: 0;
+    overflow: hidden;
+}
+.focal .label {
+    font-family: var(--font-mono);
+    font-size: var(--small-size);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.78;
+}
+.focal .focal-title {
+    font-family: var(--font-display);
+    font-size: clamp(1rem, 2.3vw, 1.8rem);
+    line-height: 1.06;
+    color: var(--on-card);
+}
+
+/* Feature cards */
+.feat {
+    border: 1px solid var(--rule);
+    background: rgba(255,255,255,0.025);
+    border-radius: clamp(8px, 0.7vw, 12px);
+    padding: clamp(0.6rem, 1.1vw, 1.1rem);
+    display: flex; flex-direction: column;
+    gap: clamp(0.18rem, 0.4vw, 0.45rem);
+    min-height: 0;
+    overflow: hidden;
+}
+.feat:hover { border-color: var(--rule-bold); background: rgba(255,87,34,0.04); }
+.feat .feat-num {
+    font-family: var(--font-display);
+    color: var(--card-bg);
+    font-size: var(--micro-size);
+    letter-spacing: 0.1em;
+}
+.feat .feat-title {
+    font-family: var(--font-display);
+    font-size: clamp(0.9rem, 1.45vw, 1.15rem);
+    line-height: 1.08;
+    color: var(--ink);
+}
+.feat .feat-body {
+    color: var(--ink-mute);
+    font-size: clamp(0.68rem, 0.9vw, 0.9rem);
+    line-height: 1.36;
+}
+
+/* Bar list (orange leading bar bullet) */
+.bar-list { display: flex; flex-direction: column; gap: clamp(0.35rem, 0.7vw, 0.7rem); }
+.bar-list li {
+    list-style: none;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: clamp(0.4rem, 0.8vw, 0.85rem);
+    align-items: baseline;
+}
+.bar-list li::before {
+    content: "";
+    display: block;
+    width: clamp(0.9rem, 1.6vw, 1.6rem);
+    height: 2px;
+    background: var(--card-bg);
+    transform: translateY(-0.35em);
+}
+.bar-list li > span { color: var(--ink-mute); font-size: clamp(0.7rem, 0.95vw, 0.95rem); line-height: 1.36; }
+.bar-list li .lead { font-family: var(--font-display); color: var(--ink); margin-right: 0.35em; font-weight: 400; }
+
+/* Code block */
+.code-block {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--card-bg);
+    border-radius: 6px;
+    padding: clamp(0.55rem, 1vw, 1rem);
+    font-family: var(--font-mono);
+    font-size: var(--mono-size);
+    color: var(--ink);
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow: hidden;
+}
+.code-block .c-com  { color: var(--ink-dim); }
+.code-block .c-org  { color: var(--card-bg); }
+.code-block .c-mut  { color: var(--ink-mute); }
+
+/* Stat row */
+.stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: clamp(0.5rem, 1.1vw, 1.3rem);
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(0.5rem, 1vw, 1rem) 0;
+}
+.stat .v {
+    font-family: var(--font-display);
+    color: var(--card-bg);
+    font-size: clamp(1rem, 2.1vw, 2rem);
+    line-height: 1;
+}
+.stat .l {
+    font-family: var(--font-mono);
+    font-size: var(--micro-size);
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 0.3em;
+}
+
+/* Numbered steps */
+.steps { display: flex; flex-direction: column; gap: clamp(0.32rem, 0.65vw, 0.7rem); min-height: 0; }
+.steps .step {
+    display: grid;
+    grid-template-columns: clamp(1.4rem, 2.2vw, 2.2rem) 1fr;
+    gap: clamp(0.45rem, 0.9vw, 0.95rem);
+    align-items: baseline;
+}
+.steps .step .n {
+    font-family: var(--font-display);
+    color: var(--card-bg);
+    font-size: clamp(0.75rem, 1vw, 1rem);
+}
+.steps .step .body { color: var(--ink-mute); font-size: clamp(0.7rem, 0.92vw, 0.92rem); line-height: 1.34; }
+.steps .step .body b { color: var(--ink); font-family: var(--font-display); font-weight: 400; }
+
+/* ============================================================
+   ARCHITECTURE DIAGRAM (Slide 3) — inline SVG, scales to box
+   ============================================================ */
+.diagram-wrap {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+    overflow: hidden;
+}
+.diagram-wrap svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+.diagram-wrap text { font-family: var(--font-body); }
+.diagram-wrap .lbl-display { font-family: var(--font-display); }
+.diagram-wrap .lbl-mono { font-family: var(--font-mono); }
+
+/* ============================================================
+   PER-SLIDE LAYOUTS
+   ============================================================ */
+
+/* Slide 1: hero left, cards right */
+.s1 .body-grid {
+    grid-template-columns: 5fr 7fr;
+    grid-template-rows: 1fr auto;
+    gap: var(--gap-lg);
+}
+.s1 .hero-col {
+    display: flex; flex-direction: column;
+    justify-content: center; gap: var(--gap-lg);
+    min-height: 0;
+}
+.s1 .features-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: var(--gap);
+    min-height: 0;
+}
+.s1 .stats-row { grid-column: 1 / -1; }
+
+/* Slide 2: 7-5 split */
+.s2 .body-grid {
+    grid-template-columns: 7fr 5fr;
+    gap: var(--gap-lg);
+}
+.s2 .col { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
+
+/* Slide 3: heading row + diagram + caption strip */
+.s3 .body-grid {
+    grid-template-rows: auto 1fr auto;
+    gap: var(--gap);
+}
+.s3 .legend {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: clamp(0.4rem, 0.9vw, 1rem);
+    border-top: 1px solid var(--rule);
+    padding-top: clamp(0.4rem, 0.8vw, 0.8rem);
+}
+.s3 .legend-item .k {
+    font-family: var(--font-display);
+    color: var(--card-bg);
+    font-size: var(--micro-size);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 0.2em;
+}
+.s3 .legend-item .v {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: clamp(0.78rem, 1.05vw, 1rem);
+    line-height: 1.1;
+}
+.s3 .legend-item .d {
+    color: var(--ink-mute);
+    font-size: clamp(0.65rem, 0.85vw, 0.85rem);
+    line-height: 1.3;
+    margin-top: 0.2em;
+}
+
+/* Slide 4: two-column main; right side has a 2x3 future-bets grid */
+.s4 .body-grid { grid-template-columns: 6fr 6fr; gap: var(--gap-lg); }
+.s4 .col-head {
+    font-family: var(--font-display);
+    color: var(--card-bg);
+    font-size: var(--eyebrow-sz);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-bottom: var(--gap);
+}
+.s4 .deck-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: 1fr;
+    gap: var(--gap);
+    min-height: 0;
+    overflow: hidden;
+    flex: 1;
+}
+.s4 .deck-list .feat { padding: clamp(0.5rem, 0.95vw, 1rem); gap: 0.18rem; }
+.s4 .deck-list .feat-title { font-size: clamp(0.82rem, 1.2vw, 1rem); }
+.s4 .deck-list .feat-body { font-size: clamp(0.62rem, 0.8vw, 0.8rem); line-height: 1.3; }
+
+/* ============================================================
+   RESPONSIVE — short viewport tightening
+   ============================================================ */
+@media (max-height: 760px) {
+    :root {
+        --gap-lg: clamp(0.4rem, 0.9vw, 1rem);
+        --gap:    clamp(0.3rem, 0.6vw, 0.7rem);
+        --slide-pad: clamp(0.7rem, 1.8vw, 1.6rem);
+    }
+    .feat .feat-body { font-size: 0.74rem; line-height: 1.3; }
+    .bar-list li > span { font-size: 0.78rem; line-height: 1.3; }
+    .stats { padding: 0.5rem 0; }
+}
+@media (max-height: 640px) {
+    :root {
+        --hero-size: clamp(1.3rem, 3.6vw, 2.6rem);
+    }
+    .feat { padding: 0.5rem; gap: 0.18rem; }
+    .feat .feat-body { font-size: 0.68rem; line-height: 1.28; }
+    .nav-dots { display: none; }
+    .chrome-bottom { display: none; }
+    .stat .v { font-size: clamp(0.85rem, 1.7vw, 1.6rem); }
+}
+@media (max-width: 880px) {
+    .s1 .body-grid, .s2 .body-grid, .s4 .body-grid { grid-template-columns: 1fr; }
+    .s1 .features-col { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.2s !important;
+    }
+    html { scroll-behavior: auto; }
+    .reveal { opacity: 1 !important; transform: none !important; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- progress + dots -->
+<div class="progress" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
+<nav class="nav-dots" id="navDots" aria-label="Slide navigation"></nav>
+
+<!-- ============================================================
+     SLIDE 1 — WHAT IT IS + KEY FEATURES
+     ============================================================ -->
+<section class="slide s1" data-title="Sherlock · what + features">
+    <div class="chrome-top reveal">
+        <span class="num">01 / 04</span>
+        <div class="crumbs">
+            <span class="crumb active"><span class="n">01</span>Product</span>
+            <span class="crumb"><span class="n">02</span>How I use it</span>
+            <span class="crumb"><span class="n">03</span>Architecture</span>
+            <span class="crumb"><span class="n">04</span>Coordination &amp; future</span>
+        </div>
+    </div>
+
+    <div class="body-grid">
+        <!-- LEFT — hero -->
+        <div class="hero-col reveal">
+            <span class="eyebrow">Mihir Kulkarni · Product Review for Rogo</span>
+            <h1 class="h-display">Sherlock — my personal research analyst.</h1>
+            <p class="lede">A two-tier LLM system that runs my content diet. Quick lookups in iMessage with citations; deep, multi-source memos written straight to my Obsidian vault. Built to maximise the signal-to-noise ratio of what I read every day.</p>
+            <div class="focal">
+                <div class="label">The thesis</div>
+                <div class="focal-title">I needed an analyst, not a feed reader.</div>
+                <div class="mono" style="opacity:0.78; font-size: var(--small-size);">Two modes · one identity · zero hallucinated citations.</div>
+            </div>
+        </div>
+
+        <!-- RIGHT — feature grid + stats -->
+        <div class="features-col reveal">
+            <div class="feat">
+                <div class="feat-num">01 · INGEST</div>
+                <div class="feat-title">Curates my corpus 24/7</div>
+                <div class="feat-body">Four cron'd cloud agents pull YouTube transcripts, Substack, X posts, and blog RSS into a versioned Markdown corpus. ≤1 hour after publish.</div>
+            </div>
+            <div class="feat">
+                <div class="feat-num">02 · QUICK</div>
+                <div class="feat-title">Analyst replies in ~16s</div>
+                <div class="feat-body">Front triangulates vault + web + thread, replies in ≤4 sentences with structured citations, refuses deep synthesis itself.</div>
+            </div>
+            <div class="feat">
+                <div class="feat-num">03 · DEEP</div>
+                <div class="feat-title">McKinsey-style memo to Obsidian</div>
+                <div class="feat-body">5–15 min sub-agent. Claim-first sections, pyramid principle, structured citations, mandatory Confidence block.</div>
+            </div>
+            <div class="feat">
+                <div class="feat-num">04 · ONBOARD</div>
+                <div class="feat-title">Add a source from a pasted URL</div>
+                <div class="feat-body">"add this: &lt;url&gt;" → auto-detects YouTube / X / Substack / RSS, validates, dedupes, commits to the source roster.</div>
+            </div>
+            <div class="feat">
+                <div class="feat-num">05 · NOTIFY</div>
+                <div class="feat-title">Pings me only when there's something to read</div>
+                <div class="feat-body">No progress spam. One iMessage per finished report with the obsidian:// deep link and a 3-sentence TL;DR.</div>
+            </div>
+            <div class="feat">
+                <div class="feat-num">06 · LOCAL</div>
+                <div class="feat-title">Runs on my Mac, never leaks</div>
+                <div class="feat-body">Bridge + indexer + repo sync as 4 launchd jobs. Cloud only writes a separate, write-isolated repo. My notes never leave my machine.</div>
+            </div>
+
+            <div class="stats stats-row">
+                <div class="stat"><div class="v">~16s</div><div class="l">quick reply</div></div>
+                <div class="stat"><div class="v">605s</div><div class="l">first deep report</div></div>
+                <div class="stat"><div class="v">$0.16</div><div class="l">30 transcripts</div></div>
+                <div class="stat"><div class="v">M0–M4 ✓</div><div class="l">milestones verified</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chrome-bottom"><div class="left">slide 01 / 04</div><div>Sherlock V2 · 2026</div></div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 2 — HOW I USE IT (lifecycle + commands)
+     ============================================================ -->
+<section class="slide s2" data-title="How I use it">
+    <div class="chrome-top reveal">
+        <span class="num">02 / 04</span>
+        <div class="crumbs">
+            <span class="crumb"><span class="n">01</span>Product</span>
+            <span class="crumb active"><span class="n">02</span>How I use it</span>
+            <span class="crumb"><span class="n">03</span>Architecture</span>
+            <span class="crumb"><span class="n">04</span>Coordination &amp; future</span>
+        </div>
+    </div>
+
+    <div class="body-grid">
+        <!-- LEFT — a real lifecycle, end-to-end -->
+        <div class="col reveal">
+            <span class="eyebrow">A real conversation, traced end-to-end</span>
+            <h2 class="h-2">"Should I care about Hyperliquid?" → memo in 10 minutes.</h2>
+            <div class="steps">
+                <div class="step"><span class="n">01</span><span class="body"><b>Me:</b> "what's happening with hyperliquid?"</span></div>
+                <div class="step"><span class="n">02</span><span class="body"><b>Front (~12s):</b> issues <span class="mono">context.search</span> + <span class="mono">web.search</span> in one tool round → "Vault skews mechanics; web is fee wars this week. Trader-PnL angle, or market-narrative angle?"</span></div>
+                <div class="step"><span class="n">03</span><span class="body"><b>Me:</b> "trader angle, last 2 weeks"</span></div>
+                <div class="step"><span class="n">04</span><span class="body"><b>Front:</b> "Got it — trader PnL, last two weeks. Should I start writing the full report? Reply Y or N."</span></div>
+                <div class="step"><span class="n">05</span><span class="body"><b>Me:</b> "Y"</span></div>
+                <div class="step"><span class="n">06</span><span class="body"><b>Front:</b> calls <span class="mono">research.start({ topic, dimensions, time_horizon, urgency })</span> → "On it — #4. ETA 10 min."</span></div>
+                <div class="step"><span class="n">07</span><span class="body"><b>Researcher (~605s):</b> 4 dimensions, 1 deep_research call, writes claim-first sections + TL;DR + Confidence, commits + pushes vault.</span></div>
+                <div class="step"><span class="n">08</span><span class="body"><b>iMessage:</b> obsidian:// deep-link + 3-sentence TL;DR. The file's already in Obsidian.</span></div>
+            </div>
+        </div>
+
+        <!-- RIGHT — surfaces + command surface -->
+        <div class="col reveal">
+            <div class="focal">
+                <div class="label">Surfaces</div>
+                <div class="focal-title">iMessage in. Obsidian out.</div>
+                <div class="mono" style="font-size: var(--small-size); opacity: 0.85; line-height: 1.6;">
+                    INPUT &nbsp;→ iMessage (BlueBubbles webhook)<br/>
+                    OUTPUT → Obsidian vault, auto-pulled every 60s<br/>
+                    REPLY &nbsp;→ ≤4 sentences, always cited<br/>
+                    SOURCE → "add this: &lt;url&gt;" — paste anything
+                </div>
+            </div>
+
+            <div class="code-block"><span class="c-com">// six commands. the whole product surface.</span>
+ask anything <span class="c-mut">— scope it, Y/N to start the report</span>
+"<span class="c-org">what's running?</span>" <span class="c-mut">— list jobs</span>
+"<span class="c-org">cancel #N</span>" <span class="c-mut">— kill a researcher</span>
+"<span class="c-org">add this: &lt;url&gt;</span>" <span class="c-mut">— follow source</span>
+"<span class="c-org">what am I tracking?</span>" <span class="c-mut">— roster</span>
+"<span class="c-org">drop &lt;source&gt;</span>" <span class="c-mut">— unfollow</span></div>
+
+            <div class="stats" style="grid-template-columns: 1fr 1fr 1fr;">
+                <div class="stat"><div class="v">15</div><div class="l">citations / report</div></div>
+                <div class="stat"><div class="v">4</div><div class="l">claim-first sections</div></div>
+                <div class="stat"><div class="v">&lt;$0.30</div><div class="l">tokens / report</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chrome-bottom"><div class="left">slide 02 / 04</div><div>Sherlock V2 · 2026</div></div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 3 — ARCHITECTURE (SVG diagram)
+     ============================================================ -->
+<section class="slide s3" data-title="Architecture">
+    <div class="chrome-top reveal">
+        <span class="num">03 / 04</span>
+        <div class="crumbs">
+            <span class="crumb"><span class="n">01</span>Product</span>
+            <span class="crumb"><span class="n">02</span>How I use it</span>
+            <span class="crumb active"><span class="n">03</span>Architecture</span>
+            <span class="crumb"><span class="n">04</span>Coordination &amp; future</span>
+        </div>
+    </div>
+
+    <div class="body-grid">
+        <!-- TITLE row -->
+        <div class="reveal" style="display:flex; align-items:end; justify-content:space-between; gap: var(--gap); flex-wrap: wrap;">
+            <div>
+                <span class="eyebrow">The whiteboard view</span>
+                <h2 class="h-2">Three repos · two-tier agents · MCP as the contract.</h2>
+            </div>
+            <span class="mono dim">routed via @cursor/sdk + Anthropic SDK · launchd × 4</span>
+        </div>
+
+        <!-- SVG DIAGRAM -->
+        <div class="diagram-wrap reveal">
+            <svg viewBox="0 0 1280 620" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Sherlock architecture diagram">
+                <!-- ===== marker defs ===== -->
+                <defs>
+                    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                        <path d="M0,0 L10,5 L0,10 z" fill="#FF5722"/>
+                    </marker>
+                    <marker id="arrow-mute" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                        <path d="M0,0 L10,5 L0,10 z" fill="#76726b"/>
+                    </marker>
+                    <marker id="arrow-light" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+                        <path d="M0,0 L10,5 L0,10 z" fill="#b8b4ad"/>
+                    </marker>
+                </defs>
+
+                <!-- ===== Lane labels (left edge) ===== -->
+                <g font-size="11" font-family="JetBrains Mono, monospace" fill="#76726b" letter-spacing="2">
+                    <text x="14" y="60" class="lbl-mono">A · CLOUD INGEST</text>
+                    <text x="14" y="190" class="lbl-mono">B · CORPUS + INDEX</text>
+                    <text x="14" y="335" class="lbl-mono">C · LOCAL AGENTS</text>
+                    <text x="14" y="500" class="lbl-mono">D · TOOLS / OUTPUT</text>
+                </g>
+
+                <!-- ===== Lane separators ===== -->
+                <g stroke="rgba(246,243,238,0.10)" stroke-width="1">
+                    <line x1="0" y1="115" x2="1280" y2="115"/>
+                    <line x1="0" y1="245" x2="1280" y2="245"/>
+                    <line x1="0" y1="425" x2="1280" y2="425"/>
+                </g>
+
+                <!-- ============================================
+                     LANE A — CLOUD INGEST (4 chips → corpus)
+                     ============================================ -->
+                <g>
+                    <!-- chip: youtube -->
+                    <rect x="170" y="35" width="200" height="56" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(246,243,238,0.22)"/>
+                    <text x="270" y="60" text-anchor="middle" font-family="Archivo Black" font-size="14" fill="#f6f3ee">ingest-youtube</text>
+                    <text x="270" y="80" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#b8b4ad">cron */30m · Apify</text>
+                    <!-- chip: twitter -->
+                    <rect x="395" y="35" width="200" height="56" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(246,243,238,0.22)"/>
+                    <text x="495" y="60" text-anchor="middle" font-family="Archivo Black" font-size="14" fill="#f6f3ee">ingest-twitter</text>
+                    <text x="495" y="80" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#b8b4ad">cron */15m · X API</text>
+                    <!-- chip: substack -->
+                    <rect x="620" y="35" width="200" height="56" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(246,243,238,0.22)"/>
+                    <text x="720" y="60" text-anchor="middle" font-family="Archivo Black" font-size="14" fill="#f6f3ee">ingest-substack</text>
+                    <text x="720" y="80" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#b8b4ad">cron 1h · RSS</text>
+                    <!-- chip: blogs -->
+                    <rect x="845" y="35" width="200" height="56" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(246,243,238,0.22)"/>
+                    <text x="945" y="60" text-anchor="middle" font-family="Archivo Black" font-size="14" fill="#f6f3ee">ingest-blogs</text>
+                    <text x="945" y="80" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#b8b4ad">cron 2h · RSS</text>
+                </g>
+
+                <!-- arrows: each cloud chip -> sherlock-context -->
+                <g stroke="#76726b" stroke-width="1.5" fill="none" marker-end="url(#arrow-mute)">
+                    <path d="M270,91 L270,140"/>
+                    <path d="M495,91 L495,140"/>
+                    <path d="M720,91 L720,140"/>
+                    <path d="M945,91 L945,140"/>
+                </g>
+
+                <!-- ============================================
+                     LANE B — CORPUS + INDEX
+                     ============================================ -->
+                <g>
+                    <!-- sherlock-context (orange focal) -->
+                    <rect x="170" y="145" width="430" height="70" rx="10" fill="#FF5722"/>
+                    <text x="385" y="172" text-anchor="middle" font-family="Archivo Black" font-size="16" fill="#15110d">sherlock-context (raw .md)</text>
+                    <text x="385" y="195" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#15110d" opacity="0.78">cloud-write · PAT-firewalled · git as DB</text>
+
+                    <!-- SQLite FTS5 -->
+                    <rect x="640" y="145" width="220" height="70" rx="10" fill="rgba(255,255,255,0.04)" stroke="rgba(246,243,238,0.22)"/>
+                    <text x="750" y="172" text-anchor="middle" font-family="Archivo Black" font-size="14" fill="#f6f3ee">SQLite FTS5</text>
+                    <text x="750" y="194" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#b8b4ad">local index · indexer watcher</text>
+
+                    <!-- sherlock-vault (orange focal) -->
+                    <rect x="900" y="145" width="280" height="70" rx="10" fill="#FF5722"/>
+                    <text x="1040" y="172" text-anchor="middle" font-family="Archivo Black" font-size="16" fill="#15110d">sherlock-vault</text>
+                    <text x="1040" y="195" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#15110d" opacity="0.78">Reports/yyyy-mm/...md</text>
+                </g>
+
+                <!-- arrows: context → FTS5 (left to right) -->
+                <g stroke="#FF5722" stroke-width="1.6" fill="none" marker-end="url(#arrow)">
+                    <path d="M600,180 L640,180"/>
+                </g>
+                <!-- arrows: vault ←--- (will be filled in by researcher path below) -->
+
+                <!-- ============================================
+                     LANE C — LOCAL AGENTS
+                     ============================================ -->
+                <g>
+                    <!-- iMessage -->
+                    <rect x="170" y="270" width="140" height="60" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(246,243,238,0.22)"/>
+                    <text x="240" y="295" text-anchor="middle" font-family="Archivo Black" font-size="13" fill="#f6f3ee">iMessage</text>
+                    <text x="240" y="314" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#b8b4ad">BlueBubbles webhook</text>
+
+                    <!-- Bridge -->
+                    <rect x="335" y="270" width="155" height="60" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(246,243,238,0.22)"/>
+                    <text x="412" y="295" text-anchor="middle" font-family="Archivo Black" font-size="13" fill="#f6f3ee">Bridge</text>
+                    <text x="412" y="314" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#b8b4ad">port :18790 · sqlite</text>
+
+                    <!-- Sherlock-Front (orange) -->
+                    <rect x="515" y="262" width="240" height="76" rx="10" fill="#FF5722"/>
+                    <text x="635" y="288" text-anchor="middle" font-family="Archivo Black" font-size="15" fill="#15110d">Sherlock-Front</text>
+                    <text x="635" y="307" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#15110d" opacity="0.78">claude-haiku-4-5</text>
+                    <text x="635" y="325" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#15110d" opacity="0.65">Anthropic SDK · ≤4 sentences · Y/N gate</text>
+
+                    <!-- Job Manager -->
+                    <rect x="780" y="270" width="180" height="60" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(246,243,238,0.22)"/>
+                    <text x="870" y="295" text-anchor="middle" font-family="Archivo Black" font-size="13" fill="#f6f3ee">Job Manager</text>
+                    <text x="870" y="314" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#b8b4ad">cap=3 · FIFO · 30m · sqlite</text>
+
+                    <!-- Sherlock-Researcher (orange) -->
+                    <rect x="985" y="262" width="220" height="76" rx="10" fill="#FF5722"/>
+                    <text x="1095" y="288" text-anchor="middle" font-family="Archivo Black" font-size="15" fill="#15110d">Sherlock-Researcher</text>
+                    <text x="1095" y="307" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#15110d" opacity="0.78">claude-sonnet-4-6</text>
+                    <text x="1095" y="325" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#15110d" opacity="0.65">Cursor SDK · cwd=vault</text>
+                </g>
+
+                <!-- horizontal arrows in agent lane -->
+                <g stroke="#FF5722" stroke-width="1.8" fill="none" marker-end="url(#arrow)">
+                    <path d="M310,300 L335,300"/>
+                    <path d="M490,300 L515,300"/>
+                    <path d="M755,300 L780,300"/>
+                    <path d="M960,300 L985,300"/>
+                </g>
+
+                <!-- arrow label: research.start -->
+                <text x="867" y="262" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#FF5722">research.start( )</text>
+
+                <!-- Vertical reads from FTS5 to Front + Researcher (dashed) -->
+                <g stroke="#b8b4ad" stroke-width="1.2" fill="none" stroke-dasharray="4,4" marker-end="url(#arrow-light)">
+                    <path d="M715,215 L660,260"/>      <!-- FTS5 -> Front -->
+                    <path d="M785,215 L1080,260"/>     <!-- FTS5 -> Researcher -->
+                </g>
+                <text x="700" y="240" font-family="JetBrains Mono, monospace" font-size="9" fill="#b8b4ad">read · context.search</text>
+
+                <!-- ============================================
+                     LANE D — TOOLS + OUTPUT
+                     ============================================ -->
+                <g>
+                    <!-- Tool chips strip -->
+                    <g font-family="JetBrains Mono, monospace" font-size="10">
+                        <rect x="170" y="450" width="140" height="36" rx="6" fill="rgba(255,255,255,0.025)" stroke="rgba(246,243,238,0.10)"/>
+                        <text x="240" y="473" text-anchor="middle" fill="#f6f3ee">context-search</text>
+
+                        <rect x="320" y="450" width="120" height="36" rx="6" fill="rgba(255,255,255,0.025)" stroke="rgba(246,243,238,0.10)"/>
+                        <text x="380" y="473" text-anchor="middle" fill="#f6f3ee">sources</text>
+
+                        <rect x="450" y="450" width="160" height="36" rx="6" fill="rgba(255,255,255,0.025)" stroke="rgba(246,243,238,0.10)"/>
+                        <text x="530" y="473" text-anchor="middle" fill="#f6f3ee">research-control</text>
+
+                        <rect x="620" y="450" width="140" height="36" rx="6" fill="rgba(255,255,255,0.025)" stroke="rgba(246,243,238,0.10)"/>
+                        <text x="690" y="473" text-anchor="middle" fill="#f6f3ee">report-writer</text>
+
+                        <rect x="770" y="450" width="160" height="36" rx="6" fill="rgba(255,255,255,0.025)" stroke="rgba(246,243,238,0.10)"/>
+                        <text x="850" y="473" text-anchor="middle" fill="#f6f3ee">bluebubbles-out</text>
+
+                        <rect x="940" y="450" width="150" height="36" rx="6" fill="rgba(255,87,34,0.14)" stroke="#FF5722"/>
+                        <text x="1015" y="473" text-anchor="middle" fill="#f6f3ee">parallel-search</text>
+
+                        <rect x="1100" y="450" width="130" height="36" rx="6" fill="rgba(255,87,34,0.14)" stroke="#FF5722"/>
+                        <text x="1165" y="473" text-anchor="middle" fill="#f6f3ee">parallel-task</text>
+                    </g>
+
+                    <!-- Surface row: reply + obsidian + iMessage notify -->
+                    <rect x="170" y="525" width="240" height="60" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(246,243,238,0.22)"/>
+                    <text x="290" y="550" text-anchor="middle" font-family="Archivo Black" font-size="13" fill="#f6f3ee">iMessage reply</text>
+                    <text x="290" y="569" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#b8b4ad">≤4 sentences · cited</text>
+
+                    <rect x="700" y="525" width="220" height="60" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(246,243,238,0.22)"/>
+                    <text x="810" y="550" text-anchor="middle" font-family="Archivo Black" font-size="13" fill="#f6f3ee">Obsidian (vault)</text>
+                    <text x="810" y="569" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#b8b4ad">git pull every 60s</text>
+
+                    <rect x="950" y="525" width="270" height="60" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(246,243,238,0.22)"/>
+                    <text x="1085" y="550" text-anchor="middle" font-family="Archivo Black" font-size="13" fill="#f6f3ee">iMessage notify</text>
+                    <text x="1085" y="569" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#b8b4ad">obsidian:// link + 3-line TL;DR</text>
+                </g>
+
+                <!-- arrows from agents → tools → surfaces -->
+                <g stroke="#FF5722" stroke-width="1.6" fill="none" marker-end="url(#arrow)">
+                    <!-- Front → reply (down to bottom-left surface) -->
+                    <path d="M580,338 L580,400 L290,400 L290,525"/>
+                    <!-- Researcher → report-writer (down) -->
+                    <path d="M1050,338 L1050,400 L690,400 L690,450"/>
+                    <!-- report-writer → vault -->
+                    <path d="M690,486 L690,510 L810,510 L810,525"/>
+                    <!-- Researcher → bluebubbles-out → iMessage notify -->
+                    <path d="M1130,338 L1130,420 L850,420 L850,450"/>
+                    <path d="M850,486 L850,510 L1085,510 L1085,525"/>
+                    <!-- vault file is also a write into sherlock-vault repo -->
+                    <path d="M810,525 L810,500 L1040,500 L1040,215" stroke-dasharray="3,4" marker-end="url(#arrow-light)" stroke="#b8b4ad" stroke-width="1.2"/>
+                </g>
+                <!-- web tools arrow up to researcher -->
+                <g stroke="#FF5722" stroke-width="1.6" fill="none" marker-end="url(#arrow)">
+                    <path d="M1015,450 L1015,400 L1075,400 L1075,338" stroke-dasharray="0"/>
+                </g>
+
+                <!-- Front → research-control arrow into agents lane (already inline) -->
+                <!-- Front → parallel-search down -->
+                <g stroke="#b8b4ad" stroke-width="1.2" fill="none" stroke-dasharray="4,4" marker-end="url(#arrow-light)">
+                    <path d="M635,338 L635,420 L1015,420 L1015,450"/>
+                </g>
+
+                <!-- caption -->
+                <text x="640" y="612" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#76726b">solid orange = hot path · dashed gray = read / web · orange chip = hosted MCP</text>
+            </svg>
+        </div>
+
+        <!-- LEGEND / KEY DECISIONS -->
+        <div class="legend reveal">
+            <div class="legend-item">
+                <div class="k">Decision · 01</div>
+                <div class="v">Two-tier agents</div>
+                <div class="d">Fast Front (Haiku) handles every turn. Slow Researcher (Sonnet) handles synthesis. Async lifecycle keeps iMessage responsive.</div>
+            </div>
+            <div class="legend-item">
+                <div class="k">Decision · 02</div>
+                <div class="v">Direct Anthropic SDK for Front</div>
+                <div class="d">Cursor SDK injects "you are a coding assistant" the model treats as authoritative. Traded SDK convenience for persona stickiness.</div>
+            </div>
+            <div class="legend-item">
+                <div class="k">Decision · 03</div>
+                <div class="v">Mandatory Y/N gate</div>
+                <div class="d">One explicit human checkpoint before any agent burns 10 min and a deep_research call. Literal Y or yes — not soft confirmation.</div>
+            </div>
+            <div class="legend-item">
+                <div class="k">Decision · 04</div>
+                <div class="v">Git as the database</div>
+                <div class="d">Three repos = three writers, zero contention. Free durability, audit trail, sync. Cloud writes corpus; local writes vault.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chrome-bottom"><div class="left">slide 03 / 04</div><div>Sherlock V2 · 2026</div></div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 4 — COORDINATION + FUTURE
+     ============================================================ -->
+<section class="slide s4" data-title="Coordination &amp; future">
+    <div class="chrome-top reveal">
+        <span class="num">04 / 04</span>
+        <div class="crumbs">
+            <span class="crumb"><span class="n">01</span>Product</span>
+            <span class="crumb"><span class="n">02</span>How I use it</span>
+            <span class="crumb"><span class="n">03</span>Architecture</span>
+            <span class="crumb active"><span class="n">04</span>Coordination &amp; future</span>
+        </div>
+    </div>
+
+    <div class="body-grid">
+        <!-- LEFT — How agents coordinate -->
+        <div class="col reveal" style="display:flex; flex-direction:column; min-height:0; gap: var(--gap);">
+            <div>
+                <span class="eyebrow">How the agents coordinate</span>
+                <h2 class="h-2">MCP is the contract; the queue is the trust boundary.</h2>
+            </div>
+
+            <ul class="bar-list">
+                <li><span><span class="lead">Tool surface = trust boundary.</span> Front gets read + control tools (no <span class="mono">report-writer</span>, no <span class="mono">parallel-task</span>). Researcher gets write + heavy-web (no <span class="mono">research-control</span>). No agent can spawn another.</span></li>
+                <li><span><span class="lead">Async via durable queue.</span> <span class="mono">research.start</span> returns instantly with <span class="mono">{ id, queue_pos, eta }</span>. Job manager owns a SQLite-backed FIFO with cap=3 + 30-min hard timeout. Survives bridge restart.</span></li>
+                <li><span><span class="lead">No cross-agent shared state</span> — every handoff is a tool call with a typed payload, or a git commit. Two different Claude families, one analyst identity.</span></li>
+                <li><span><span class="lead">No partial silence.</span> Failed researchers still finalize a <span class="mono">status: partial</span> report and notify me. The system never goes dark.</span></li>
+            </ul>
+
+            <div class="code-block" style="margin-top: auto;"><span class="c-com">// front-runner.ts — the tool-use loop, paraphrased</span>
+<span class="c-org">for</span> turn <span class="c-org">in</span> 0..8:
+  resp = anthropic.messages.create(...)
+  <span class="c-org">if</span> stop_reason != "tool_use": <span class="c-org">break</span>
+  <span class="c-org">for</span> block <span class="c-org">in</span> resp.content:
+    <span class="c-mut">// MCP adapter dispatches: stdio for local,
+    // HTTP+Bearer for Parallel.</span>
+    call MCP, append tool_result</div>
+        </div>
+
+        <!-- RIGHT — Future improvements -->
+        <div class="col reveal" style="display:flex; flex-direction:column; min-height:0; gap: var(--gap);">
+            <div>
+                <span class="eyebrow">Future improvements</span>
+                <h2 class="h-2">The next six bets — ranked by user-felt impact.</h2>
+            </div>
+            <div class="deck-list">
+                <div class="feat">
+                    <div class="feat-num">BET 01 · UX</div>
+                    <div class="feat-title">Daily Brief sub-agent</div>
+                    <div class="feat-body">A 6 a.m. proactive Researcher that surfaces the three things from yesterday's corpus I should actually read. Inverts "I ask, it answers."</div>
+                </div>
+                <div class="feat">
+                    <div class="feat-num">BET 02 · QUALITY</div>
+                    <div class="feat-title">Self-criticism revision pass</div>
+                    <div class="feat-body">Second Sonnet pass grades the draft against the McKinsey contract and forces a revision before <span class="mono">notify_complete</span> fires.</div>
+                </div>
+                <div class="feat">
+                    <div class="feat-num">BET 03 · RETRIEVAL</div>
+                    <div class="feat-title">Personal entity graph</div>
+                    <div class="feat-body">Extract people, companies, topics on ingest. "Everything Dwarkesh said about scaling laws this year" becomes a graph hop, not a search.</div>
+                </div>
+                <div class="feat">
+                    <div class="feat-num">BET 04 · CORPUS</div>
+                    <div class="feat-title">Multi-modal ingest</div>
+                    <div class="feat-body">Whisper for podcasts. PDFs dropped into a vault inbox auto-indexed. X bookmarks once user-context OAuth lands.</div>
+                </div>
+                <div class="feat">
+                    <div class="feat-num">BET 05 · COST</div>
+                    <div class="feat-title">Tiered model router</div>
+                    <div class="feat-body">Trivia → Haiku, recon → Sonnet, deep synthesis → Opus. Promote the implicit prompt-level routing into an explicit policy module.</div>
+                </div>
+                <div class="feat">
+                    <div class="feat-num">BET 06 · LOOP</div>
+                    <div class="feat-title">Source-quality scoring</div>
+                    <div class="feat-body">Track which sources Front actually cites in real reports. Auto-suggest dropping sources with no citation in 90 days. Corpus curates itself.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chrome-bottom"><div class="left">slide 04 / 04</div><div>Mihir Kulkarni · Sherlock V2 · 2026</div></div>
+</section>
+
+<!-- ============================================================
+     SCRIPT — slide controller
+     ============================================================ -->
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = Array.from(document.querySelectorAll(".slide"));
+        this.progressFill = document.getElementById("progressFill");
+        this.navDots = document.getElementById("navDots");
+        this.currentIndex = 0;
+
+        this.buildNavDots();
+        this.observe();
+        this.bindKeys();
+        this.bindWheel();
+        this.bindTouch();
+        this.bindScroll();
+    }
+    buildNavDots() {
+        this.navDots.innerHTML = "";
+        this.slides.forEach((slide, i) => {
+            const btn = document.createElement("button");
+            btn.setAttribute("aria-label", "Go to slide " + (i + 1));
+            btn.title = slide.dataset.title || ("Slide " + (i + 1));
+            btn.addEventListener("click", () => this.goTo(i));
+            this.navDots.appendChild(btn);
+        });
+    }
+    setActive(i) {
+        this.currentIndex = i;
+        Array.from(this.navDots.children).forEach((b, idx) => b.classList.toggle("active", idx === i));
+    }
+    observe() {
+        const io = new IntersectionObserver((entries) => {
+            entries.forEach((e) => {
+                if (e.isIntersecting && e.intersectionRatio > 0.55) {
+                    e.target.classList.add("visible");
+                    const idx = this.slides.indexOf(e.target);
+                    if (idx >= 0) this.setActive(idx);
+                }
+            });
+        }, { threshold: [0.55, 0.8] });
+        this.slides.forEach((s) => io.observe(s));
+    }
+    bindKeys() {
+        document.addEventListener("keydown", (e) => {
+            if (["ArrowDown", "PageDown", " "].includes(e.key)) {
+                e.preventDefault();
+                this.goTo(Math.min(this.currentIndex + 1, this.slides.length - 1));
+            } else if (["ArrowUp", "PageUp"].includes(e.key)) {
+                e.preventDefault();
+                this.goTo(Math.max(this.currentIndex - 1, 0));
+            } else if (e.key === "Home") {
+                this.goTo(0);
+            } else if (e.key === "End") {
+                this.goTo(this.slides.length - 1);
+            }
+        });
+    }
+    bindWheel() {
+        let cooldown = false;
+        window.addEventListener("wheel", (e) => {
+            if (cooldown) return;
+            if (Math.abs(e.deltaY) < 30) return;
+            cooldown = true;
+            setTimeout(() => (cooldown = false), 700);
+            if (e.deltaY > 0) this.goTo(Math.min(this.currentIndex + 1, this.slides.length - 1));
+            else this.goTo(Math.max(this.currentIndex - 1, 0));
+        }, { passive: true });
+    }
+    bindTouch() {
+        let startY = 0;
+        window.addEventListener("touchstart", (e) => { startY = e.touches[0].clientY; }, { passive: true });
+        window.addEventListener("touchend", (e) => {
+            const dy = startY - e.changedTouches[0].clientY;
+            if (Math.abs(dy) < 50) return;
+            if (dy > 0) this.goTo(Math.min(this.currentIndex + 1, this.slides.length - 1));
+            else this.goTo(Math.max(this.currentIndex - 1, 0));
+        }, { passive: true });
+    }
+    bindScroll() {
+        window.addEventListener("scroll", () => {
+            const total = document.documentElement.scrollHeight - window.innerHeight;
+            const pct = Math.max(0, Math.min(100, (window.scrollY / total) * 100));
+            this.progressFill.style.width = pct + "%";
+        }, { passive: true });
+    }
+    goTo(i) { this.slides[i].scrollIntoView({ behavior: "smooth", block: "start" }); }
+}
+window.addEventListener("DOMContentLoaded", () => new SlidePresentation());
+</script>
+
+</body>
+</html>
