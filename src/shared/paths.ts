@@ -16,6 +16,8 @@ export const ENV_PATH = resolve(HOME, ".sherlock", ".env");
 
 export const STATE_DIR = resolve(PROJECT_ROOT, "state");
 export const INDEX_DB = resolve(STATE_DIR, "index.sqlite");
+export const SHARED_INDEX_DB =
+  process.env["SHERLOCK_SHARED_INDEX_DB"] ?? resolve(STATE_DIR, "shared-index.sqlite");
 export const CONVERSATIONS_DB = resolve(STATE_DIR, "conversations.sqlite");
 export const RESEARCH_RUNS_DB = resolve(STATE_DIR, "research-runs.sqlite");
 export const CLOUD_RUNS_DB = resolve(STATE_DIR, "cloud-runs.sqlite");

@@ -5,7 +5,7 @@
   "type": "module",
   "description": "SherlockV2 — Cursor-native personal research analyst. Cloud-scheduled ingestion + local two-tier agent (Front orchestrator + Researcher sub-agents).",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.0.0 <23"
   },
   "scripts": {
     "build": "tsc",
@@ -22,6 +22,8 @@
     "reindex": "tsx src/scripts/reindex.ts",
     "indexer": "tsx src/scripts/indexer.ts",
     "indexer:dev": "tsx watch src/scripts/indexer.ts",
+    "context:api": "tsx src/retrieval/api-server.ts",
+    "index:cloud": "tsx src/scripts/cloud-index-sync.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

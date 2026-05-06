@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: sherlock-context-api
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: npm install --no-audit --no-fund
+    startCommand: npm run context:api
+    healthCheckPath: /healthz
+    disk:
+      name: sherlock-context-data
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SHERLOCK_SHARED_INDEX_DB
+        value: /data/shared-index.sqlite
+      - key: SHERLOCK_EMBEDDING_MODEL
+        value: voyage-3-lite
+      - key: SHERLOCK_CONTEXT_API_TOKEN
+        sync: false
+      - key: VOYAGE_API_KEY
+        sync: false

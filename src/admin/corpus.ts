@@ -1,9 +1,9 @@
 /**
  * Corpus file explorer.
  *
- * Reads `state/index.sqlite` (the FTS5 corpus, populated by the indexer
- * watching sherlock-context/_raw). Lets the dashboard browse all 600+
- * docs by source and open the raw markdown for any single doc.
+ * Reads the preferred corpus DB (`state/shared-index.sqlite` when present,
+ * otherwise the legacy `state/index.sqlite`). Lets the dashboard browse all
+ * indexed docs by source and open the raw markdown for any single doc.
  *
  * Read-only. The doc body is read live from the `path` column on disk —
  * we don't trust the FTS-indexed copy because the markdown is the source
@@ -13,7 +13,7 @@
 import Database from "better-sqlite3";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { INDEX_DB, CONTEXT_PATH } from "../shared/paths.js";
+import { INDEX_DB, SHARED_INDEX_DB, CONTEXT_PATH } from "../shared/paths.js";
 
 export interface CorpusDocSummary {
   doc_id: number;
@@ -62,6 +62,10 @@ function relPath(p: string): string {
   return p;
 }
 
+function preferredCorpusDbPath(): string {
+  return existsSync(SHARED_INDEX_DB) ? SHARED_INDEX_DB : INDEX_DB;
+}
+
 function rowToSummary(r: Record<string, unknown>): CorpusDocSummary {
   const out: CorpusDocSummary = {
     doc_id: r["doc_id"] as number,
@@ -106,15 +110,17 @@ export function listDocs(opts: {
     by_source: {}, authors: [], docs: [],
     filters,
   };
-  if (!existsSync(INDEX_DB)) return empty;
+  const dbPath = preferredCorpusDbPath();
+  if (!existsSync(dbPath)) return empty;
 
-  const db = new Database(INDEX_DB, { readonly: true, fileMustExist: true });
+  const db = new Database(dbPath, { readonly: true, fileMustExist: true });
   try {
-    const totalAllRow = db.prepare(`SELECT COUNT(*) n FROM docs`).get() as { n: number };
+    const docsTable = dbPath === SHARED_INDEX_DB ? "documents" : "docs";
+    const totalAllRow = db.prepare(`SELECT COUNT(*) n FROM ${docsTable}`).get() as { n: number };
     const totalAll = totalAllRow.n;
-    const bySource = (db.prepare(`SELECT source, COUNT(*) n FROM docs GROUP BY source`).all() as Array<{ source: string; n: number }>);
+    const bySource = (db.prepare(`SELECT source, COUNT(*) n FROM ${docsTable} GROUP BY source`).all() as Array<{ source: string; n: number }>);
     const authors = (db.prepare(
-      `SELECT author, COUNT(*) n FROM docs WHERE author IS NOT NULL AND author != '' GROUP BY author ORDER BY n DESC, author ASC LIMIT 100`
+      `SELECT author, COUNT(*) n FROM ${docsTable} WHERE author IS NOT NULL AND author != '' GROUP BY author ORDER BY n DESC, author ASC LIMIT 100`
     ).all() as Array<{ author: string; n: number }>);
 
     // Build the WHERE clause incrementally.
@@ -123,23 +129,28 @@ export function listDocs(opts: {
     if (opts.source) { where.push("d.source = ?"); params.push(opts.source); }
     if (opts.author) { where.push("d.author = ?"); params.push(opts.author); }
 
-    let baseFrom = "FROM docs d";
+    let baseFrom = `FROM ${docsTable} d`;
     let qDocIds: number[] | null = null;
     if (opts.q && opts.q.trim()) {
-      // FTS5 MATCH; safely escape the user's term for FTS5 syntax (wrap in quotes).
-      const escaped = opts.q.replace(/"/g, '""');
-      try {
-        const rows = db.prepare(
-          `SELECT rowid FROM docs_fts WHERE docs_fts MATCH ? LIMIT 2000`
-        ).all(`"${escaped}"`) as Array<{ rowid: number }>;
-        qDocIds = rows.map((r) => r.rowid);
-        if (qDocIds.length === 0) {
-          return { ...empty, total_all: totalAll, by_source: Object.fromEntries(bySource.map(r => [r.source, r.n])), authors };
+      if (dbPath === SHARED_INDEX_DB) {
+        where.push("(d.title LIKE ? OR d.content_id LIKE ?)");
+        params.push(`%${opts.q}%`, `%${opts.q}%`);
+      } else {
+        // FTS5 MATCH; safely escape the user's term for FTS5 syntax (wrap in quotes).
+        const escaped = opts.q.replace(/"/g, '""');
+        try {
+          const rows = db.prepare(
+            `SELECT rowid FROM docs_fts WHERE docs_fts MATCH ? LIMIT 2000`
+          ).all(`"${escaped}"`) as Array<{ rowid: number }>;
+          qDocIds = rows.map((r) => r.rowid);
+          if (qDocIds.length === 0) {
+            return { ...empty, total_all: totalAll, by_source: Object.fromEntries(bySource.map(r => [r.source, r.n])), authors };
+          }
+        } catch {
+          // Fallback: title LIKE.
+          where.push("d.title LIKE ?");
+          params.push(`%${opts.q}%`);
         }
-      } catch {
-        // Fallback: title LIKE.
-        where.push("d.title LIKE ?");
-        params.push(`%${opts.q}%`);
       }
     }
     if (qDocIds && qDocIds.length > 0) {
@@ -174,13 +185,15 @@ export function listDocs(opts: {
 
 /** Fetch one doc + its raw markdown body. Returns null if unknown. */
 export function getDoc(docId: number): CorpusDoc | null {
-  if (!existsSync(INDEX_DB)) return null;
-  const db = new Database(INDEX_DB, { readonly: true, fileMustExist: true });
+  const dbPath = preferredCorpusDbPath();
+  if (!existsSync(dbPath)) return null;
+  const db = new Database(dbPath, { readonly: true, fileMustExist: true });
   try {
+    const docsTable = dbPath === SHARED_INDEX_DB ? "documents" : "docs";
     const row = db.prepare(
       `SELECT doc_id, source, source_id, content_id, url, author, title,
               published_at, ingested_at, transcript_status, language, body_chars, path
-       FROM docs WHERE doc_id = ?`
+       FROM ${docsTable} WHERE doc_id = ?`
     ).get(docId) as Record<string, unknown> | undefined;
     if (!row) return null;
     const summary = rowToSummary(row);

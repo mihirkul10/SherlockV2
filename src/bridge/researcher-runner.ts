@@ -49,6 +49,8 @@ function buildPrompt(args: { research_id: number; scope: ResearchScope }): strin
     scope.sources_focus?.length ? `**preferred sources**: ${scope.sources_focus.join(", ")}` : "",
     scope.urgency ? `**urgency**: ${scope.urgency}` : "",
     scope.notes ? `**user notes**: ${scope.notes}` : "",
+    scope.index_brief ? `**index brief**: ${scope.index_brief}` : "",
+    scope.followup_questions?.length ? `**index follow-up angles**: ${scope.followup_questions.join(" | ")}` : "",
     "",
     "Begin. Remember: gather → synthesize → write_section per dimension → finalize → notify_complete. One report. Cite everything. No iMessage progress messages — just the final notify.",
   ].filter((l) => l !== "").join("\n");
