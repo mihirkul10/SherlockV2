@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Unload + remove all SherlockV2 launchd jobs.
+# Unload + remove all SherlockV2 launchd jobs, including stale legacy services.
 set -euo pipefail
 
 TARGET="$HOME/Library/LaunchAgents"

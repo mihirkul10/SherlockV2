@@ -3,8 +3,8 @@
  *
  * Hosts the dashboard at http://127.0.0.1:18789/admin and exposes the
  * single Start/Stop Sherlock master button via /admin/services/{status,
- * start, stop}. Reads sqlite + json files directly so it works whether
- * or not the bridge is up.
+ * start, stop}. Reads local json/sqlite state directly where appropriate and
+ * queries the shared retrieval API as the single source of corpus truth.
  *
  * Started by:  npm run admin            (foreground, dev)
  *              npm run admin:dev         (watch mode)
@@ -53,7 +53,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     try {
       // Pass the bridge port (the "real" sherlock port) through for display.
       const bridgePort = parseInt(optionalEnv("BRIDGE_PORT") ?? "18790", 10);
-      const snap = buildSnapshot({ port: bridgePort });
+      const snap = await buildSnapshot({ port: bridgePort });
       sendJson(res, 200, snap);
     } catch (err) {
       log.error({ err: err instanceof Error ? err.message : String(err) }, "snapshot failed");
@@ -140,7 +140,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       res.end(corpusListHtml());
       return;
     }
-    try { sendJson(res, 200, listDocs(opts)); }
+    try { sendJson(res, 200, await listDocs(opts)); }
     catch (err) {
       log.error({ err: err instanceof Error ? err.message : String(err) }, "corpus list failed");
       sendJson(res, 500, { ok: false, error: err instanceof Error ? err.message : String(err) });
@@ -169,7 +169,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       res.end(corpusDocHtml(id));
       return;
     }
-    const doc = getDoc(id);
+    const doc = await getDoc(id);
     if (!doc) { sendJson(res, 404, { ok: false, error: `unknown doc id: ${id}` }); return; }
     sendJson(res, 200, doc);
     return;

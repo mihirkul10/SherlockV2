@@ -115,6 +115,60 @@ export const StatsResponseSchema = z.object({
   bySource: z.record(z.string(), z.number().int()),
 });
 
+export const AdminCorpusListInputSchema = z.object({
+  source: z.string().min(1).optional(),
+  author: z.string().min(1).optional(),
+  q: z.string().min(1).optional(),
+  limit: z.number().int().min(1).max(500).default(50),
+  offset: z.number().int().min(0).default(0),
+});
+
+export const AdminCorpusAuthorSchema = z.object({
+  author: z.string(),
+  n: z.number().int(),
+});
+
+export const AdminCorpusDocSummarySchema = z.object({
+  doc_id: z.number().int().min(1),
+  source: z.string().min(1),
+  source_id: z.string(),
+  content_id: z.string().min(1),
+  url: z.string().optional(),
+  author: z.string().optional(),
+  title: z.string().optional(),
+  published_at: z.string().optional(),
+  ingested_at: z.string().optional(),
+  transcript_status: z.string().optional(),
+  language: z.string().optional(),
+  body_chars: z.number().int().optional(),
+  rel_path: z.string().min(1),
+});
+
+export const AdminCorpusFiltersSchema = z.object({
+  source: z.string().optional(),
+  author: z.string().optional(),
+  q: z.string().optional(),
+  limit: z.number().int(),
+  offset: z.number().int(),
+});
+
+export const AdminCorpusListResponseSchema = z.object({
+  generated_at: z.string(),
+  total: z.number().int().min(0),
+  total_all: z.number().int().min(0),
+  by_source: z.record(z.string(), z.number().int()),
+  authors: z.array(AdminCorpusAuthorSchema),
+  docs: z.array(AdminCorpusDocSummarySchema),
+  filters: AdminCorpusFiltersSchema,
+});
+
+export const AdminCorpusDocResponseSchema = AdminCorpusDocSummarySchema.extend({
+  abs_path: z.string(),
+  body: z.string(),
+  size_bytes: z.number().int().min(0),
+  body_origin: z.enum(["raw-markdown", "reconstructed-chunks"]).optional(),
+});
+
 export const ContextBriefSchema = z.object({
   summary: z.string(),
   themes: z.array(z.string()),
@@ -141,6 +195,11 @@ export const ContextFollowupsSchema = z.object({
   handoff_note: z.string(),
   hits: z.array(SearchHitSchema),
 });
+
+export type AdminCorpusListInput = z.infer<typeof AdminCorpusListInputSchema>;
+export type AdminCorpusDocSummary = z.infer<typeof AdminCorpusDocSummarySchema>;
+export type AdminCorpusListResponse = z.infer<typeof AdminCorpusListResponseSchema>;
+export type AdminCorpusDocResponse = z.infer<typeof AdminCorpusDocResponseSchema>;
 
 export interface PreparedChunk {
   chunk_index: number;

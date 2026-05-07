@@ -5,6 +5,10 @@
  * is *very* rate-limited — caller should pace per-handle calls. We cache the
  * since_id per handle in twitter-people-state.json so we only fetch new tweets.
  *
+ * We intentionally ingest the user's full visible timeline here: original
+ * tweets, replies, quotes, and retweets. This keeps the corpus closer to the
+ * actual stream of what these accounts are saying and amplifying.
+ *
  * Markdown layout (per plan §3):
  *   sherlock-context/_raw/twitter/people/<handle>/<yyyy-mm-dd>-<tweet-id>.md
  *
@@ -82,7 +86,6 @@ async function fetchRecentTweets(opts: {
   const params = new URLSearchParams({
     "max_results": String(Math.max(5, Math.min(opts.maxResults ?? 25, 100))),
     "tweet.fields": "created_at,author_id,conversation_id,referenced_tweets",
-    "exclude": "retweets,replies", // focus on original posts; cheaper to ingest
   });
   if (opts.sinceId) params.set("since_id", opts.sinceId);
   const url = `https://api.x.com/2/users/${encodeURIComponent(opts.userId)}/tweets?${params.toString()}`;
@@ -107,6 +110,12 @@ function tweetTitle(text: string): string {
   return oneLine.length > 80 ? oneLine.slice(0, 77) + "…" : oneLine;
 }
 
+function tweetKind(tweet: XTweet): string {
+  const kinds = [...new Set((tweet.referenced_tweets ?? []).map((ref) => ref.type))];
+  if (kinds.length === 0) return "original";
+  return kinds.join(",");
+}
+
 function writeTweetMarkdown(opts: {
   tweet: XTweet;
   userId: string;
@@ -127,6 +136,7 @@ function writeTweetMarkdown(opts: {
     body: opts.tweet.text,
     extras: {
       handle: `@${opts.handle}`,
+      tweet_kind: tweetKind(opts.tweet),
       ...(opts.tweet.conversation_id && { conversation_id: opts.tweet.conversation_id }),
     },
   });
@@ -158,7 +168,9 @@ export async function ingestTwitterPerson(opts: IngestPersonOptions): Promise<In
       userId: opts.userId,
       bearer: opts.bearer,
       ...(personState.lastTweetId && { sinceId: personState.lastTweetId }),
-      maxResults: personState.lastTweetId ? 25 : (opts.initialBackfill ?? 50),
+      // Once replies/retweets are included, the timeline can move faster.
+      // Pull the full page to reduce the chance of gaps between scheduled runs.
+      maxResults: personState.lastTweetId ? 100 : (opts.initialBackfill ?? 50),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

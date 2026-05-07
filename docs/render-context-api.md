@@ -70,13 +70,15 @@ Update `~/.sherlock/.env`:
 
 Then restart Sherlock services from the admin portal or reload launchd.
 
-## Recommended local cleanup after successful cutover
+## Recommended local runtime after successful cutover
 
-Once the hosted Render service is healthy and the cloud indexer is using it:
+Once the hosted Render service is healthy and Sherlock is pointed at it:
 
-- keep `com.sherlock.context-api` disabled by default on the Mac
-- keep `com.sherlock.context-index-sync` disabled by default on the Mac
-- keep the fallback local indexer only for offline debugging
+- do not run a separate local `com.sherlock.context-api` service in normal operation
+- do not rely on any local SQLite retrieval fallback path
+- keep `com.sherlock.context-sync` enabled so the Mac sees fresh raw corpus pulls
+- keep `com.sherlock.context-index-sync` enabled if you want the Mac to push pulled raw changes into the shared API between cloud indexer runs
 
-The code already falls back to the local legacy index if the remote retrieval
-API is unavailable, so this cutover is low-risk.
+The intended runtime model is remote-only retrieval: Front, Researcher, and the
+admin surfaces should all treat the hosted shared API as the single searchable
+corpus backend.

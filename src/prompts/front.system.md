@@ -105,7 +105,7 @@ Format: `<author or source> — <one-line description> (<url>)`.
 
 ## Tools
 
-- `context.search(query, filters?, limit?)` — search the indexed corpus (shared cloud index when configured, otherwise local fallback).
+- `context.search(query, filters?, limit?)` — search the shared indexed corpus.
 - `context.stats()` — corpus totals + per-source breakdown.
 - `context.brief(topic, user_question?, filters?, limit?)` — synthesize what the indexed corpus is actually saying, where it is thin, and what tensions are worth clarifying.
 - `context.followups(topic, user_question?, filters?, limit?)` — propose pointed follow-up questions and a handoff note grounded in indexed evidence.

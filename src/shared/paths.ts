@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import { homedir } from "node:os";
 
 const HOME = homedir();
@@ -15,7 +15,6 @@ export const VAULT_PATH =
 export const ENV_PATH = resolve(HOME, ".sherlock", ".env");
 
 export const STATE_DIR = resolve(PROJECT_ROOT, "state");
-export const INDEX_DB = resolve(STATE_DIR, "index.sqlite");
 export const SHARED_INDEX_DB =
   process.env["SHERLOCK_SHARED_INDEX_DB"] ?? resolve(STATE_DIR, "shared-index.sqlite");
 export const CONVERSATIONS_DB = resolve(STATE_DIR, "conversations.sqlite");
@@ -36,4 +35,27 @@ export function stateFilePath(source: string): string {
 
 export function rawDir(source: string, slug: string): string {
   return resolve(CONTEXT_RAW_DIR, source, slug);
+}
+
+export function toContextRelativePath(path: string): string {
+  const normalizedInput = path.replace(/\\/g, "/");
+  const rel = isAbsolute(path) ? relative(CONTEXT_PATH, path).replace(/\\/g, "/") : normalizedInput;
+  const cleaned = rel.replace(/^\.\/+/, "").replace(/^\/+/, "");
+  if (cleaned === "" || cleaned === ".") {
+    throw new Error(`refusing to store corpus root as a document path: ${path}`);
+  }
+  if (cleaned === ".." || cleaned.startsWith("../")) {
+    throw new Error(`path escapes sherlock-context: ${path}`);
+  }
+  return cleaned;
+}
+
+export function fromContextRelativePath(path: string): string {
+  const cleaned = toContextRelativePath(path);
+  const absolute = resolve(CONTEXT_PATH, cleaned);
+  const relBack = relative(CONTEXT_PATH, absolute).replace(/\\/g, "/");
+  if (relBack === ".." || relBack.startsWith("../")) {
+    throw new Error(`resolved path escapes sherlock-context: ${path}`);
+  }
+  return absolute;
 }

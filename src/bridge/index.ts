@@ -237,7 +237,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   // Kept for any external caller still polling /admin/state on the bridge.
   if (req.method === "GET" && url === "/admin/state") {
     try {
-      const snap = buildSnapshot({ port: PORT });
+      const snap = await buildSnapshot({ port: PORT });
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       res.end(JSON.stringify(snap));
     } catch (err) {
