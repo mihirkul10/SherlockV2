@@ -302,8 +302,11 @@ function renderCorpusPanel(s) {
   const html = [];
   const total = s.corpus.total || 0;
   const bySource = s.corpus.by_source || {};
-  html.push('<section class="panel full"><h2>Corpus <span class="count">' + total + ' docs · <a href="/admin/corpus" target="_blank" rel="noopener">open file explorer ›</a></span></h2><div class="body tight">');
-  if (total === 0) {
+  const backend = s.corpus.backend ? esc(s.corpus.backend) : "unknown-backend";
+  html.push('<section class="panel full"><h2>Corpus <span class="count">' + total + ' docs · ' + backend + ' · <a href="/admin/corpus" target="_blank" rel="noopener">open corpus explorer ›</a></span></h2><div class="body tight">');
+  if (s.corpus.error) {
+    html.push('<div class="empty" style="color:var(--err);font-style:normal;">Corpus stats failed: ' + esc(s.corpus.error) + '</div>');
+  } else if (total === 0) {
     html.push('<div class="empty">Corpus is empty. Run an ingest to populate it.</div>');
   } else {
     html.push('<div style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;">');
@@ -311,7 +314,7 @@ function renderCorpusPanel(s) {
       html.push('<a href="/admin/corpus?source=' + encodeURIComponent(src) + '" target="_blank" rel="noopener" class="badge" style="text-decoration:none;padding:4px 10px;font-size:12px;background:rgba(110,168,255,0.10);border:1px solid var(--border);">' + esc(src) + ' <span style="color:var(--dim);margin-left:4px;">' + n + '</span></a>');
     }
     html.push('</div>');
-    html.push('<div style="padding:0 14px 12px;color:var(--dim);font-size:11px;">Click a source above to browse. Each doc has a metadata view + the raw markdown body.</div>');
+    html.push('<div style="padding:0 14px 12px;color:var(--dim);font-size:11px;">Click a source above to browse. Explorer results come from the same configured corpus backend shown here.</div>');
   }
   html.push('</div></section>');
   return html.join("");
@@ -355,6 +358,7 @@ function render(s) {
   const corpusByline = Object.entries(s.corpus.by_source || {}).map(
     ([k, v]) => k + ": " + v
   ).join(" · ") || "no docs";
+  const corpusBackend = s.corpus.backend || "unknown-backend";
   const sourceCounts = Object.entries(s.sources.counts || {}).map(
     ([k, v]) => k.replace(/_/g, "-") + ": " + v
   ).join(" · ") || "no sources";
@@ -371,6 +375,7 @@ function render(s) {
       '<div class="stat"><div class="v">' + (s.ingest_runs.filter(r => r.ok).length) + "/" + s.ingest_runs.length + '</div><div class="l">ingests ok</div></div>' +
     '</div>' +
     '<div class="body tight" style="color:var(--dim);font-size:11px;">' +
+      'corpus backend: ' + esc(corpusBackend) + '<br/>' +
       'corpus by source: ' + esc(corpusByline) + '<br/>' +
       'sources tracked: ' + esc(sourceCounts) +
     '</div>' +
@@ -975,6 +980,7 @@ async function load() {
     f("Transcript status", d.transcript_status);
     f("Published", fmtDate(d.published_at));
     f("Ingested", fmtDate(d.ingested_at));
+    f("Body origin", d.body_origin);
     f("Body chars", d.body_chars != null ? d.body_chars.toLocaleString() : "");
     f("File size", fmtSize(d.size_bytes));
     f("Path", d.rel_path);

@@ -12,7 +12,7 @@ import { glob } from "node:fs/promises";
 import { execSync } from "node:child_process";
 import { nanoid } from "nanoid";
 import { buildPreparedDocument } from "../retrieval/build-document.js";
-import { CONTEXT_RAW_DIR, CONTEXT_PATH } from "../shared/paths.js";
+import { CONTEXT_RAW_DIR, CONTEXT_PATH, fromContextRelativePath, toContextRelativePath } from "../shared/paths.js";
 import { createLogger } from "../shared/logger.js";
 import { loadEnv, optionalEnv } from "../shared/env.js";
 import type { PreparedDocument } from "../retrieval/contracts.js";
@@ -72,7 +72,7 @@ async function loadManifest(): Promise<Array<{ path: string; raw_sha256: string 
   const manifest: Array<{ path: string; raw_sha256: string }> = [];
   for await (const file of glob(`${CONTEXT_RAW_DIR}/**/*.md`)) {
     manifest.push({
-      path: file,
+      path: toContextRelativePath(file),
       raw_sha256: sha(readFileSync(file, "utf-8")),
     });
   }
@@ -83,7 +83,7 @@ async function loadManifest(): Promise<Array<{ path: string; raw_sha256: string 
 async function buildDocuments(paths: string[]): Promise<PreparedDocument[]> {
   const docs: PreparedDocument[] = [];
   for (const path of paths) {
-    const document = await buildPreparedDocument(path);
+    const document = await buildPreparedDocument(fromContextRelativePath(path));
     if (document) docs.push(document);
   }
   return docs;

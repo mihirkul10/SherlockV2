@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M4 verification battery — paste-URL onboarding + all 4 ingestor paths + Admin Canvas presence.
+# M4 verification battery — paste-URL onboarding + all 4 ingestor paths + shared corpus presence.
 # Requires: bridge running on 127.0.0.1:18790 for the URL-onboarding test.
 set -uo pipefail
 PASS=0
@@ -9,6 +9,8 @@ check() { if [ "$1" = "OK" ]; then PASS=$((PASS+1)); echo "  ✓ $2"; else FAIL=
 PROJECT="$HOME/Projects/SherlockV2"
 CONTEXT="$HOME/Projects/sherlock-context"
 PORT=18790
+ENV_FILE="$HOME/.sherlock/.env"
+[ -f "$ENV_FILE" ] && source "$ENV_FILE"
 
 echo "=== V1: All 4 ingestor cloud-automation prompt files exist ==="
 for a in ingest-youtube ingest-twitter-people ingest-substack ingest-blogs; do
@@ -41,18 +43,24 @@ has_blog = any('platformer' in (f.get('url','') or '').lower() for f in d['blogs
 print('OK' if has_blog else 'FAIL')
 " | grep -q OK && check OK "Platformer present in sources.json blogs[]" || check FAIL "Platformer not in sources.json"
 
-echo "=== V7: Local FTS5 index sees all 3 source types ==="
-counts=$(sqlite3 "$PROJECT/state/index.sqlite" "SELECT source||'='||COUNT(*) FROM docs GROUP BY source" 2>/dev/null | tr '\n' ' ')
+echo "=== V7: Shared API sees all 3 source types ==="
+counts=$(curl -sS -m 15 "$SHERLOCK_CONTEXT_API_URL/query/stats" \
+  -H "Authorization: Bearer ${SHERLOCK_CONTEXT_API_TOKEN:-}" 2>/dev/null \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); print(' '.join(f'{k}={v}' for k,v in sorted(d.get('bySource',{}).items())))")
 echo "  → $counts"
 echo "$counts" | grep -q "youtube=" && echo "$counts" | grep -q "twitter-people=" && echo "$counts" | grep -q "blog=" \
-  && check OK "FTS5 has youtube + twitter-people + blog rows" || check FAIL "FTS5 missing some source types"
+  && check OK "shared API has youtube + twitter-people + blog rows" || check FAIL "shared API missing some source types"
 
-echo "=== V8: Cross-source FTS5 query returns hits from multiple source types ==="
-hits=$(sqlite3 "$PROJECT/state/index.sqlite" "SELECT DISTINCT d.source FROM docs_fts JOIN docs d ON d.doc_id=docs_fts.rowid WHERE docs_fts MATCH '\"ai\"' LIMIT 5" 2>/dev/null | wc -l | tr -d ' ')
+echo "=== V8: Cross-source shared search returns hits from multiple source types ==="
+hits=$(curl -sS -m 15 -X POST "$SHERLOCK_CONTEXT_API_URL/query/search" \
+  -H "Authorization: Bearer ${SHERLOCK_CONTEXT_API_TOKEN:-}" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"ai","limit":10}' 2>/dev/null \
+  | python3 -c "import sys,json; data=json.load(sys.stdin); print(len({h.get('source') for h in data.get('hits',[]) if h.get('source')}))")
 [ "${hits:-0}" -ge 2 ] && check OK "'ai' query returns hits from $hits distinct source types" || check FAIL "cross-source query returned $hits"
 
-echo "=== V9: All 4 launchd plists present ==="
-for p in com.sherlock.context-sync com.sherlock.vault-sync com.sherlock.bridge com.sherlock.indexer; do
+echo "=== V9: Primary launchd plists present ==="
+for p in com.sherlock.admin com.sherlock.context-sync com.sherlock.context-index-sync com.sherlock.vault-sync com.sherlock.bridge; do
   [ -f "$PROJECT/launchd/$p.plist" ] && check OK "$p.plist present" || check FAIL "$p.plist missing"
 done
 
