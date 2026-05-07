@@ -1,5 +1,8 @@
 import { optionalEnv } from "../shared/env.js";
 import {
+  AdminCorpusDocResponseSchema,
+  AdminCorpusListInputSchema,
+  AdminCorpusListResponseSchema,
   BriefInputSchema,
   ContextBriefSchema,
   ContextFollowupsSchema,
@@ -37,10 +40,6 @@ async function jsonRequest<T>(path: string, init?: RequestInit): Promise<T> {
   return await response.json() as T;
 }
 
-export function hasRemoteContextApi(): boolean {
-  return Boolean(optionalEnv("SHERLOCK_CONTEXT_API_URL"));
-}
-
 export async function remoteSearch(raw: unknown) {
   const input = SearchInputSchema.parse(raw);
   const response = await jsonRequest<unknown>("/query/search", {
@@ -54,6 +53,33 @@ export async function remoteStats(raw: unknown) {
   StatsInputSchema.parse(raw ?? {});
   const response = await jsonRequest<unknown>("/query/stats");
   return StatsResponseSchema.parse(response);
+}
+
+export async function remoteAdminCorpusList(raw: unknown) {
+  const input = AdminCorpusListInputSchema.parse(raw ?? {});
+  const params = new URLSearchParams();
+  if (input.source) params.set("source", input.source);
+  if (input.author) params.set("author", input.author);
+  if (input.q) params.set("q", input.q);
+  params.set("limit", String(input.limit));
+  params.set("offset", String(input.offset));
+  const response = await jsonRequest<unknown>(`/admin/corpus?${params.toString()}`, {
+    method: "GET",
+  });
+  return AdminCorpusListResponseSchema.parse(response);
+}
+
+export async function remoteAdminCorpusDoc(docId: number) {
+  const response = await fetch(`${baseUrl()}/admin/corpus/${docId}`, {
+    method: "GET",
+    headers: authHeaders(),
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Context API /admin/corpus/${docId} failed (${response.status}): ${body.slice(0, 300)}`);
+  }
+  return AdminCorpusDocResponseSchema.parse(await response.json());
 }
 
 export async function remoteBrief(raw: unknown) {

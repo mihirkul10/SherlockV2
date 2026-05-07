@@ -7,6 +7,10 @@ import { createLogger } from "../shared/logger.js";
 import { embedQuery, cosineSimilarity } from "./embeddings.js";
 import { summarizeSnippet } from "./chunking.js";
 import type {
+  AdminCorpusDocResponse,
+  AdminCorpusDocSummary,
+  AdminCorpusListInput,
+  AdminCorpusListResponse,
   ContextStats,
   IndexRunPayloadSchema,
   ManifestItemSchema,
@@ -148,6 +152,25 @@ function buildFilterSql(filters: SearchFilters = {}, docAlias = "d"): { sql: str
     params["lang"] = filters.language;
   }
   return { sql: where.length > 0 ? ` AND ${where.join(" AND ")}` : "", params };
+}
+
+function rowToAdminCorpusSummary(row: Record<string, unknown>): AdminCorpusDocSummary {
+  const out: AdminCorpusDocSummary = {
+    doc_id: row["doc_id"] as number,
+    source: row["source"] as string,
+    source_id: row["source_id"] as string,
+    content_id: row["content_id"] as string,
+    rel_path: row["path"] as string,
+  };
+  if (typeof row["url"] === "string" && row["url"]) out.url = row["url"] as string;
+  if (typeof row["author"] === "string" && row["author"]) out.author = row["author"] as string;
+  if (typeof row["title"] === "string" && row["title"]) out.title = row["title"] as string;
+  if (typeof row["published_at"] === "string" && row["published_at"]) out.published_at = row["published_at"] as string;
+  if (typeof row["ingested_at"] === "string" && row["ingested_at"]) out.ingested_at = row["ingested_at"] as string;
+  if (typeof row["transcript_status"] === "string" && row["transcript_status"]) out.transcript_status = row["transcript_status"] as string;
+  if (typeof row["language"] === "string" && row["language"]) out.language = row["language"] as string;
+  if (typeof row["body_chars"] === "number") out.body_chars = row["body_chars"] as number;
+  return out;
 }
 
 export function upsertPreparedDocument(doc: PreparedDocument): { changedChunks: number } {
@@ -308,6 +331,122 @@ export function getSharedStats(): ContextStats {
     newest_published_at: totals.newest_published_at,
     newest_indexed_at: totals.newest_indexed_at,
     bySource,
+  };
+}
+
+export function listSharedDocuments(opts: Partial<AdminCorpusListInput> = {}): AdminCorpusListResponse {
+  const d = getDb();
+  const limit = Math.max(1, Math.min(opts.limit ?? 50, 500));
+  const offset = Math.max(0, opts.offset ?? 0);
+  const filters: AdminCorpusListResponse["filters"] = { limit, offset };
+  if (opts.source) filters.source = opts.source;
+  if (opts.author) filters.author = opts.author;
+  if (opts.q) filters.q = opts.q;
+
+  const totalAllRow = d.prepare(`SELECT COUNT(*) AS n FROM documents`).get() as { n: number };
+  const bySourceRows = d.prepare(`SELECT source, COUNT(*) AS n FROM documents GROUP BY source`).all() as Array<{ source: string; n: number }>;
+  const authors = d.prepare(`
+    SELECT author, COUNT(*) AS n
+    FROM documents
+    WHERE author IS NOT NULL AND author != ''
+    GROUP BY author
+    ORDER BY n DESC, author ASC
+    LIMIT 100
+  `).all() as Array<{ author: string; n: number }>;
+
+  const where: string[] = [];
+  const params: Record<string, unknown> = {};
+  if (opts.source) {
+    where.push("d.source = @source");
+    params["source"] = opts.source;
+  }
+  if (opts.author) {
+    where.push("d.author = @author");
+    params["author"] = opts.author;
+  }
+  if (opts.q?.trim()) {
+    const fts = buildFtsQuery(opts.q);
+    if (fts === '""') {
+      return {
+        generated_at: new Date().toISOString(),
+        total: 0,
+        total_all: totalAllRow.n,
+        by_source: Object.fromEntries(bySourceRows.map((row) => [row.source, row.n])),
+        authors,
+        docs: [],
+        filters,
+      };
+    }
+    const matchingDocs = d.prepare(`
+      SELECT DISTINCT d.doc_id
+      FROM chunks_fts
+      JOIN chunks c ON c.chunk_id = chunks_fts.rowid
+      JOIN documents d ON d.doc_id = c.doc_id
+      WHERE chunks_fts MATCH @fts
+      LIMIT 2000
+    `).all({ fts }) as Array<{ doc_id: number }>;
+    if (matchingDocs.length === 0) {
+      return {
+        generated_at: new Date().toISOString(),
+        total: 0,
+        total_all: totalAllRow.n,
+        by_source: Object.fromEntries(bySourceRows.map((row) => [row.source, row.n])),
+        authors,
+        docs: [],
+        filters,
+      };
+    }
+    where.push(`d.doc_id IN (${matchingDocs.map((_, idx) => `@doc${idx}`).join(",")})`);
+    matchingDocs.forEach((row, idx) => {
+      params[`doc${idx}`] = row.doc_id;
+    });
+  }
+
+  const whereSql = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+  const totalRow = d.prepare(`SELECT COUNT(*) AS n FROM documents d ${whereSql}`).get(params) as { n: number };
+  const rows = d.prepare(`
+    SELECT d.doc_id, d.source, d.source_id, d.content_id, d.url, d.author, d.title,
+           d.published_at, d.ingested_at, d.transcript_status, d.language, d.body_chars, d.path
+    FROM documents d
+    ${whereSql}
+    ORDER BY COALESCE(d.published_at, d.ingested_at) DESC
+    LIMIT @limit OFFSET @offset
+  `).all({ ...params, limit, offset }) as Array<Record<string, unknown>>;
+
+  return {
+    generated_at: new Date().toISOString(),
+    total: totalRow.n,
+    total_all: totalAllRow.n,
+    by_source: Object.fromEntries(bySourceRows.map((row) => [row.source, row.n])),
+    authors,
+    docs: rows.map(rowToAdminCorpusSummary),
+    filters,
+  };
+}
+
+export function getSharedDocument(docId: number): AdminCorpusDocResponse | null {
+  const d = getDb();
+  const row = d.prepare(`
+    SELECT d.doc_id, d.source, d.source_id, d.content_id, d.url, d.author, d.title,
+           d.published_at, d.ingested_at, d.transcript_status, d.language, d.body_chars, d.path
+    FROM documents d
+    WHERE d.doc_id = ?
+  `).get(docId) as Record<string, unknown> | undefined;
+  if (!row) return null;
+
+  const chunks = d.prepare(`
+    SELECT text
+    FROM chunks
+    WHERE doc_id = ?
+    ORDER BY chunk_index ASC
+  `).all(docId) as Array<{ text: string }>;
+  const body = chunks.map((chunk) => chunk.text.trim()).filter(Boolean).join("\n\n");
+  return {
+    ...rowToAdminCorpusSummary(row),
+    abs_path: row["path"] as string,
+    body,
+    size_bytes: Buffer.byteLength(body, "utf-8"),
+    body_origin: "reconstructed-chunks",
   };
 }
 

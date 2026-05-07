@@ -6,7 +6,8 @@
  * corpus size, source roster, ingestion-run history, and log tails.
  *
  * Read-only. Safe to call as often as the dashboard polls. Does NOT depend
- * on the bridge being up — reads sqlite and json files directly.
+ * on the bridge being up — reads local sqlite/json state directly and uses the
+ * shared retrieval API as the single source of corpus truth.
  */
 
 import Database from "better-sqlite3";
@@ -15,25 +16,18 @@ import { resolve } from "node:path";
 import {
   CONVERSATIONS_DB,
   RESEARCH_RUNS_DB,
-  INDEX_DB,
-  SHARED_INDEX_DB,
   CONTEXT_RUNS_LOG,
   SOURCES_JSON,
   STATE_DIR,
   VAULT_REPORTS_DIR,
 } from "../shared/paths.js";
 import { homedir } from "node:os";
+import { remoteStats } from "../retrieval/api-client.js";
 
 const HOME = homedir();
 const BRIDGE_LOG = resolve(HOME, "Library", "Logs", "sherlock-bridge.log");
-const CONTEXT_API_LOG = resolve(HOME, "Library", "Logs", "sherlock-context-api.log");
 const CONTEXT_INDEX_SYNC_LOG = resolve(HOME, "Library", "Logs", "sherlock-context-index-sync.log");
-const INDEXER_LOG = resolve(HOME, "Library", "Logs", "sherlock-indexer.log");
 const MCP_CTX_LOG = resolve(STATE_DIR, "mcp-context-search.log");
-
-function preferredCorpusDbPath(): string {
-  return existsSync(SHARED_INDEX_DB) ? SHARED_INDEX_DB : INDEX_DB;
-}
 
 function tailLines(path: string, n: number): string[] {
   if (!existsSync(path)) return [];
@@ -44,9 +38,6 @@ function tailLines(path: string, n: number): string[] {
   } catch { return []; }
 }
 
-function safeStmt<T>(db: Database.Database, sql: string, ...params: unknown[]): T | undefined {
-  try { return db.prepare(sql).get(...params) as T; } catch { return undefined; }
-}
 function safeAll<T>(db: Database.Database, sql: string, ...params: unknown[]): T[] {
   try { return db.prepare(sql).all(...params) as T[]; } catch { return []; }
 }
@@ -90,6 +81,8 @@ export interface AdminSnapshot {
     total: number;
     by_source: Record<string, number>;
     last_indexed_at?: string;
+    backend?: "remote-api" | "local-shared-index" | "legacy-local-index";
+    error?: string;
   };
   sources: {
     counts: Record<string, number>;
@@ -122,9 +115,7 @@ export interface AdminSnapshot {
   };
   logs: {
     bridge_tail: string[];
-    context_api_tail: string[];
     context_index_sync_tail: string[];
-    indexer_tail: string[];
     mcp_context_tail: string[];
   };
 }
@@ -132,7 +123,7 @@ export interface AdminSnapshot {
 const t0 = Date.now();
 const myPid = process.pid;
 
-export function buildSnapshot(opts: { port: number }): AdminSnapshot {
+export async function buildSnapshot(opts: { port: number }): Promise<AdminSnapshot> {
   const now = Date.now();
 
   let active: AdminSnapshot["research"]["active"] = [];
@@ -213,33 +204,22 @@ export function buildSnapshot(opts: { port: number }): AdminSnapshot {
     } finally { db.close(); }
   }
 
-  let corpus: AdminSnapshot["corpus"] = { total: 0, by_source: {} };
-  const corpusDbPath = preferredCorpusDbPath();
-  if (existsSync(corpusDbPath)) {
-    const db = new Database(corpusDbPath, { readonly: true, fileMustExist: true });
-    try {
-      if (corpusDbPath === SHARED_INDEX_DB) {
-        const total = safeStmt<{ n: number }>(db, `SELECT COUNT(*) n FROM documents`);
-        const bySource = safeAll<{ source: string; n: number }>(db,
-          `SELECT source, COUNT(*) n FROM documents GROUP BY source`);
-        corpus = {
-          total: total?.n ?? 0,
-          by_source: Object.fromEntries(bySource.map((r) => [r.source, r.n])),
-        };
-      } else {
-        const total = safeStmt<{ n: number }>(db, `SELECT COUNT(*) n FROM docs`);
-        const bySource = safeAll<{ source: string; n: number }>(db,
-          `SELECT source, COUNT(*) n FROM docs GROUP BY source`);
-        corpus = {
-          total: total?.n ?? 0,
-          by_source: Object.fromEntries(bySource.map((r) => [r.source, r.n])),
-        };
-      }
-      try {
-        const stat = statSync(corpusDbPath);
-        corpus.last_indexed_at = stat.mtime.toISOString();
-      } catch { /* ignore */ }
-    } finally { db.close(); }
+  let corpus: AdminSnapshot["corpus"] = { total: 0, by_source: {}, backend: "remote-api" };
+  try {
+    const stats = await remoteStats({});
+    corpus = {
+      total: stats.total,
+      by_source: stats.bySource,
+      last_indexed_at: stats.newest_indexed_at ?? undefined,
+      backend: "remote-api",
+    };
+  } catch (err) {
+    corpus = {
+      total: 0,
+      by_source: {},
+      backend: "remote-api",
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 
   const sources: AdminSnapshot["sources"] = { counts: {} };
@@ -350,9 +330,7 @@ export function buildSnapshot(opts: { port: number }): AdminSnapshot {
 
   const logs = {
     bridge_tail: tailLines(BRIDGE_LOG, 50),
-    context_api_tail: tailLines(CONTEXT_API_LOG, 25),
     context_index_sync_tail: tailLines(CONTEXT_INDEX_SYNC_LOG, 25),
-    indexer_tail: tailLines(INDEXER_LOG, 25),
     mcp_context_tail: tailLines(MCP_CTX_LOG, 25),
   };
 

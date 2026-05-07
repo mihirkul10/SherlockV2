@@ -49,8 +49,7 @@ npm run smoke:sdk            # validates CURSOR_API_KEY (local + cloud SDK round
 npm run resolve:youtube      # 29 @handles -> UC channelIds
 npm run resolve:twitter      # 4 @handles + @mihirkul10 -> userIds
 npm run seed:sources         # writes sherlock-context/_state/sources.json
-npm run reindex              # cold rebuild of local SQLite FTS5 index
-./launchd/install.sh         # installs all 4 launchd jobs
+./launchd/install.sh         # installs the local Sherlock launchd jobs
 ```
 
 ### 3. Obsidian one-time setup
@@ -75,21 +74,19 @@ Cloud automation env vars (set in **My Secrets** of the Cloud Agents dashboard):
 
 ## Local services
 
-Five primary launchd jobs run continuously on the Sherlock Mac:
+Five launchd jobs run continuously on the Sherlock Mac:
 
 | Service | What | Logs |
 |---------|------|------|
-| `com.sherlock.context-api` | shared retrieval API used by Front + Researcher after reboot | `~/Library/Logs/sherlock-context-api.log` |
+| `com.sherlock.admin` | always-on admin portal so service controls remain available even if the bridge is down | `~/Library/Logs/sherlock-admin.log` |
 | `com.sherlock.bridge` | iMessage bridge + Front + research job manager | `~/Library/Logs/sherlock-bridge.log` |
 | `com.sherlock.context-sync` | `git pull --ff-only` on `sherlock-context` every 60 s | `~/Library/Logs/sherlock-context-sync.log` |
-| `com.sherlock.context-index-sync` | runs `npm run index:cloud` every 90 s to refresh the shared local index from pulled raw corpus | `~/Library/Logs/sherlock-context-index-sync.log` |
+| `com.sherlock.context-index-sync` | runs `npm run index:cloud` every 90 s to push pulled raw corpus changes into the shared retrieval API | `~/Library/Logs/sherlock-context-index-sync.log` |
 | `com.sherlock.vault-sync` | `git pull --ff-only` on `sherlock-vault` every 60 s | `~/Library/Logs/sherlock-vault-sync.log` |
 
 Manage with `./launchd/install.sh` and `./launchd/uninstall.sh`.
 
-For the shared index itself, run `npm run context:api` on whichever host should own the retrieval service. On the Sherlock Mac, `SHERLOCK_CONTEXT_API_URL=http://127.0.0.1:18840` is sufficient for reboot-safe local operation. If you later deploy a network-reachable host, point both the Mac and the cloud automation at that URL instead.
-
-`com.sherlock.indexer` remains available as a fallback/offline legacy service, but it is no longer part of the primary boot path.
+For the shared index itself, run `npm run context:api` on the host that owns the retrieval service. In the intended production setup that is Render (or another persistent host), and the Mac points `SHERLOCK_CONTEXT_API_URL` at that remote service.
 
 For a permanent always-on shared index, deploy `npm run context:api` to Render
 or another host with persistent disk. A ready-to-import Render blueprint lives
@@ -100,12 +97,11 @@ at `render.yaml`; see `docs/render-context-api.md` for the cutover steps.
 | Need to... | Do this |
 |------------|---------|
 | Add a new source | Paste any URL into iMessage: `add this source: <url>`. Front calls `sources.add` MCP, the resolver figures out the type, validates, commits to `sherlock-context`. |
-| Ask a quick question | Just message Sherlock. Front does fast recon (local + web) and replies in seconds with citations. |
+| Ask a quick question | Just message Sherlock. Front does fast recon (shared corpus + web) and replies in seconds with citations. |
 | Get a deep report | Message Sherlock with an open-ended question. Front asks one scoping question, then offers to spin up a Researcher. On confirmation: `research.start` → 5-15 min → DM with `obsidian://` link to the report. |
 | See what's running | "what are you working on?" → Front calls `research.list_active`. |
 | Cancel a report | "cancel #N" → Front calls `research.cancel`. |
 | Force-run an ingestor | `npm run ingest -- youtube` (or `twitter-people`, `substack`, `blog`). Optionally `--handle @x`. |
-| Rebuild the fallback local index | `npm run reindex`. |
 | Sync the shared cloud index immediately | `npm run index:cloud`. |
 | Health check | `curl http://127.0.0.1:18790/healthz` |
 | See bridge state | `curl http://127.0.0.1:18790/state` |
@@ -118,9 +114,9 @@ Each milestone has an executable battery you can re-run anytime:
 ```bash
 ./scripts/verify-m0.sh   # foundation: repos, credentials, launchd, git round-trip
 ./scripts/verify-m1.sh   # YouTube ingest path, Apify spend, idempotency
-./scripts/verify-m2.sh   # local FTS5 index + Sherlock-Front Q&A path
+./scripts/verify-m2.sh   # shared retrieval API + Sherlock-Front Q&A path
 ./scripts/verify-m3.sh   # research sub-agents, concurrency cap, cancel, reports
-./scripts/verify-m4.sh   # paste-URL onboarding, all 4 ingestors, cross-source
+./scripts/verify-m4.sh   # paste-URL onboarding, all 4 ingestors, shared cross-source corpus
 ./scripts/verify-m5.sh   # shared retrieval API + cloud index sync + backend handoff path
 ```
 
@@ -139,6 +135,6 @@ Each milestone has an executable battery you can re-run anytime:
 |-----------|--------|
 | M0 — foundation | ✅ verified (10/10) |
 | M1 — YouTube ingest | ✅ verified (16/16) — 30 transcripts, 100% success, $0.16 spend |
-| M2 — local index + Sherlock-Front | ✅ verified (9/9) — citation-grade Q&A in ~16 s |
+| M2 — shared retrieval + Sherlock-Front | ✅ verified (9/9) — citation-grade Q&A in ~16 s |
 | M3 — Researcher + concurrency | ✅ verified (15/15) — first real report, 605 s, 15 citations |
 | M4 — remaining ingestors + URL onboarding + Canvas | ✅ — Twitter+blog ingestors, paste-URL flow, Admin snapshot, launchd plists |

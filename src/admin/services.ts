@@ -23,7 +23,6 @@ const LAUNCHAGENTS = resolve(HOME, "Library", "LaunchAgents");
 
 /** The primary services the master button controls. Order = start order. */
 export const SHERLOCK_SERVICES = [
-  "com.sherlock.context-api",
   "com.sherlock.context-sync",
   "com.sherlock.context-index-sync",
   "com.sherlock.vault-sync",

@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { chunkDocument } from "./chunking.js";
 import { embedTexts } from "./embeddings.js";
 import type { PreparedDocument } from "./contracts.js";
-import { parseMarkdown } from "../index/loader.js";
+import { parseMarkdown } from "../shared/markdown-document.js";
+import { toContextRelativePath } from "../shared/paths.js";
 
 function sha(text: string): string {
   return createHash("sha256").update(text).digest("hex");
@@ -13,6 +14,7 @@ export async function buildPreparedDocument(path: string): Promise<PreparedDocum
   const raw = readFileSync(path, "utf-8");
   const { frontmatter, body } = parseMarkdown(raw);
   if (!frontmatter["source"] || !frontmatter["content_id"]) return null;
+  const relativePath = toContextRelativePath(path);
 
   const chunks = chunkDocument(body);
   const vectors = chunks.length > 0 ? await embedTexts(chunks.map((chunk) => chunk.text)) : null;
@@ -20,9 +22,9 @@ export async function buildPreparedDocument(path: string): Promise<PreparedDocum
     source: frontmatter["source"]!,
     source_id: frontmatter["source_id"] ?? "",
     content_id: frontmatter["content_id"]!,
-    title: frontmatter["title"] ?? path,
+    title: frontmatter["title"] ?? relativePath,
     body,
-    path,
+    path: relativePath,
     raw_sha256: sha(raw),
     ...(frontmatter["url"] ? { url: frontmatter["url"] } : {}),
     ...(frontmatter["author"] ? { author: frontmatter["author"] } : {}),

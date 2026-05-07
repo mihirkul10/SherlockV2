@@ -26,9 +26,7 @@ export interface LogFile {
 /** Hard-coded allow-list. Add new entries here only. */
 export const LOG_REGISTRY: ReadonlyArray<LogFile> = [
   { name: "bridge",       label: "Bridge",                    path: resolve(LOGS_DIR, "sherlock-bridge.log") },
-  { name: "context-api",  label: "Context API",               path: resolve(LOGS_DIR, "sherlock-context-api.log") },
   { name: "context-index-sync", label: "Context index sync",  path: resolve(LOGS_DIR, "sherlock-context-index-sync.log") },
-  { name: "indexer",      label: "Indexer",                   path: resolve(LOGS_DIR, "sherlock-indexer.log") },
   { name: "admin",        label: "Admin",                     path: resolve(LOGS_DIR, "sherlock-admin.log") },
   { name: "context-sync", label: "Context git-sync",          path: resolve(LOGS_DIR, "sherlock-context-sync.log") },
   { name: "vault-sync",   label: "Vault git-sync",            path: resolve(LOGS_DIR, "sherlock-vault-sync.log") },

@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import {
+  AdminCorpusListInputSchema,
   BriefInputSchema,
   DeleteDocumentsRequestSchema,
   FollowupsInputSchema,
@@ -12,7 +13,9 @@ import { buildBrief, buildFollowups } from "./planner.js";
 import {
   deletePreparedDocuments,
   diffManifest,
+  getSharedDocument,
   getSharedStats,
+  listSharedDocuments,
   recordIndexRun,
   searchSharedIndex,
 } from "./shared-index.js";
@@ -40,6 +43,10 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
   return JSON.parse(body);
 }
 
+function requestUrl(req: IncomingMessage): URL {
+  return new URL(req.url ?? "/", "http://127.0.0.1");
+}
+
 function isAuthorized(req: IncomingMessage): boolean {
   const token = optionalEnv("SHERLOCK_CONTEXT_API_TOKEN");
   if (!token) return true;
@@ -48,7 +55,8 @@ function isAuthorized(req: IncomingMessage): boolean {
 }
 
 async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const url = req.url ?? "/";
+  const parsedUrl = requestUrl(req);
+  const url = parsedUrl.pathname;
   if (req.method === "GET" && (url === "/healthz" || url === "/health")) {
     sendJson(res, 200, { ok: true, service: "sherlock-context-api", uptime_s: Math.round(process.uptime()) });
     return;
@@ -120,6 +128,34 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const payload = IndexRunPayloadSchema.parse(await readJson(req));
     recordIndexRun(payload);
     sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (req.method === "GET" && url === "/admin/corpus") {
+    const raw = {
+      source: parsedUrl.searchParams.get("source") || undefined,
+      author: parsedUrl.searchParams.get("author") || undefined,
+      q: parsedUrl.searchParams.get("q") || undefined,
+      limit: parsedUrl.searchParams.get("limit") ? Number.parseInt(parsedUrl.searchParams.get("limit")!, 10) : undefined,
+      offset: parsedUrl.searchParams.get("offset") ? Number.parseInt(parsedUrl.searchParams.get("offset")!, 10) : undefined,
+    };
+    const input = AdminCorpusListInputSchema.parse(raw);
+    sendJson(res, 200, listSharedDocuments(input));
+    return;
+  }
+
+  if (req.method === "GET" && url.startsWith("/admin/corpus/")) {
+    const docId = Number.parseInt(decodeURIComponent(url.slice("/admin/corpus/".length)), 10);
+    if (Number.isNaN(docId) || docId <= 0) {
+      sendJson(res, 400, { ok: false, error: "bad doc id" });
+      return;
+    }
+    const doc = getSharedDocument(docId);
+    if (!doc) {
+      sendJson(res, 404, { ok: false, error: `unknown doc id: ${docId}` });
+      return;
+    }
+    sendJson(res, 200, doc);
     return;
   }
 
