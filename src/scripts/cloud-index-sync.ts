@@ -107,14 +107,22 @@ async function postBatchWithRetry(documents: PreparedDocument[], attempts = 3): 
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
-async function upsertInBatches(documents: PreparedDocument[], batchSize = 1): Promise<number> {
+async function upsertInBatches(documents: PreparedDocument[], batchSize = 1, errors: string[] = []): Promise<{ changedChunks: number; failedCount: number }> {
   let changedChunks = 0;
+  let failedCount = 0;
   for (let i = 0; i < documents.length; i += batchSize) {
     const batch = documents.slice(i, i + batchSize);
-    const response = await postBatchWithRetry(batch);
-    changedChunks += response.changed_chunks ?? 0;
+    try {
+      const response = await postBatchWithRetry(batch);
+      changedChunks += response.changed_chunks ?? 0;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      errors.push(errMsg);
+      failedCount += batch.length;
+      log.warn({ batch: batch.length, error: errMsg }, "batch upsert failed, continuing with next batch");
+    }
   }
-  return changedChunks;
+  return { changedChunks, failedCount };
 }
 
 async function main(): Promise<number> {
@@ -133,8 +141,9 @@ async function main(): Promise<number> {
 
     if (diff.upsert_paths.length > 0) {
       const documents = await buildDocuments(diff.upsert_paths);
-      changedDocs = documents.length;
-      changedChunks = await upsertInBatches(documents, batchSize);
+      const result = await upsertInBatches(documents, batchSize, errors);
+      changedDocs = documents.length - result.failedCount;
+      changedChunks = result.changedChunks;
     }
     if (diff.delete_paths.length > 0) {
       const payload = DeleteDocumentsRequestSchema.parse({ paths: diff.delete_paths });
