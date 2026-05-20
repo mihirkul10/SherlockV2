@@ -117,7 +117,19 @@ async function postBatchWithRetry(documents: PreparedDocument[], attempts = 3): 
           }
           return { changed_chunks: changedChunks };
         }
-        log.error({ path: documents[0]?.path }, "UNIQUE constraint on single document path; cannot retry");
+        log.warn({ path: documents[0]?.path }, "UNIQUE constraint on single document; attempting delete-then-insert");
+        
+        if (documents[0]) {
+          try {
+            await postJson("/admin/delete-docs", { paths: [documents[0].path] });
+            log.info({ path: documents[0].path }, "deleted existing document; retrying insert");
+            const payload = UpsertDocumentsRequestSchema.parse({ documents });
+            return await postJson<{ changed_chunks?: number }>("/admin/upsert-docs", payload);
+          } catch (deleteErr) {
+            log.warn({ path: documents[0]?.path }, "delete-then-insert also failed; giving up on this document");
+            return { changed_chunks: 0 };
+          }
+        }
       }
       
       if (attempt < attempts) await sleep(500 * attempt);
@@ -130,8 +142,12 @@ async function upsertInBatches(documents: PreparedDocument[], batchSize = 1): Pr
   let changedChunks = 0;
   for (let i = 0; i < documents.length; i += batchSize) {
     const batch = documents.slice(i, i + batchSize);
-    const response = await postBatchWithRetry(batch);
-    changedChunks += response.changed_chunks ?? 0;
+    try {
+      const response = await postBatchWithRetry(batch);
+      changedChunks += response.changed_chunks ?? 0;
+    } catch (err) {
+      log.warn({ count: batch.length }, "batch upsert failed; continuing with next batch");
+    }
   }
   return changedChunks;
 }
