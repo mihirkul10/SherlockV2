@@ -185,8 +185,10 @@ export function upsertPreparedDocument(doc: PreparedDocument): { changedChunks: 
         @source, @source_id, @content_id, @url, @author, @title, @published_at,
         @ingested_at, @transcript_status, @language, @path, @body_chars, @raw_sha256, @updated_at
       )
-      ON CONFLICT(source, content_id) DO UPDATE SET
+      ON CONFLICT(path) DO UPDATE SET
+        source=excluded.source,
         source_id=excluded.source_id,
+        content_id=excluded.content_id,
         url=excluded.url,
         author=excluded.author,
         title=excluded.title,
@@ -194,7 +196,6 @@ export function upsertPreparedDocument(doc: PreparedDocument): { changedChunks: 
         ingested_at=excluded.ingested_at,
         transcript_status=excluded.transcript_status,
         language=excluded.language,
-        path=excluded.path,
         body_chars=excluded.body_chars,
         raw_sha256=excluded.raw_sha256,
         updated_at=excluded.updated_at
@@ -215,9 +216,9 @@ export function upsertPreparedDocument(doc: PreparedDocument): { changedChunks: 
       updated_at: new Date().toISOString(),
     });
 
-    const row = d.prepare(`SELECT doc_id FROM documents WHERE source=? AND content_id=?`)
-      .get(payload.source, payload.content_id) as { doc_id: number } | undefined;
-    if (!row) throw new Error(`Missing doc row after upsert: ${payload.source}/${payload.content_id}`);
+    const row = d.prepare(`SELECT doc_id FROM documents WHERE path=?`)
+      .get(payload.path) as { doc_id: number } | undefined;
+    if (!row) throw new Error(`Missing doc row after upsert: ${payload.path}`);
 
     d.prepare(`DELETE FROM chunks_fts WHERE rowid IN (SELECT chunk_id FROM chunks WHERE doc_id=?)`).run(row.doc_id);
     d.prepare(`DELETE FROM chunks WHERE doc_id=?`).run(row.doc_id);
