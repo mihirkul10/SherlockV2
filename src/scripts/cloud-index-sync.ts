@@ -101,6 +101,25 @@ async function postBatchWithRetry(documents: PreparedDocument[], attempts = 3): 
       return await postJson<{ changed_chunks?: number }>("/admin/upsert-docs", payload);
     } catch (err) {
       lastError = err;
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      
+      if (errorMsg.includes("UNIQUE constraint failed: documents.path")) {
+        if (documents.length > 1) {
+          log.warn({ count: documents.length }, "UNIQUE constraint on path; retrying documents individually");
+          let changedChunks = 0;
+          for (const doc of documents) {
+            try {
+              const result = await postBatchWithRetry([doc], 1);
+              changedChunks += result.changed_chunks ?? 0;
+            } catch (docErr) {
+              log.warn({ path: doc.path }, "failed to upsert document; continuing with others");
+            }
+          }
+          return { changed_chunks: changedChunks };
+        }
+        log.error({ path: documents[0]?.path }, "UNIQUE constraint on single document path; cannot retry");
+      }
+      
       if (attempt < attempts) await sleep(500 * attempt);
     }
   }
