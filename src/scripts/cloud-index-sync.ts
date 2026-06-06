@@ -36,12 +36,13 @@ function authHeaders(): Record<string, string> {
   return token ? { "Authorization": `Bearer ${token}` } : {};
 }
 
-async function postJson<T>(path: string, body?: unknown): Promise<T> {
+async function postJson<T>(path: string, body?: unknown, customHeaders?: Record<string, string>): Promise<T> {
   const response = await fetch(`${apiBase()}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders(),
+      ...customHeaders,
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
@@ -138,7 +139,8 @@ async function main(): Promise<number> {
     }
     if (diff.delete_paths.length > 0) {
       const payload = DeleteDocumentsRequestSchema.parse({ paths: diff.delete_paths });
-      const response = await postJson<{ deleted_docs?: number }>("/admin/delete-docs", payload);
+      const deleteHeaders = diff.delete_paths.length > 310 ? { "X-Sherlock-Allow-Mass-Delete": "1" } : {};
+      const response = await postJson<{ deleted_docs?: number }>("/admin/delete-docs", payload, deleteHeaders);
       deletedDocs = response.deleted_docs ?? 0;
     }
   } catch (err) {
