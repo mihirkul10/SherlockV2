@@ -120,6 +120,20 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
   if (req.method === "POST" && url === "/admin/delete-docs") {
     const input = DeleteDocumentsRequestSchema.parse(await readJson(req));
+    // Mass-delete guardrail: an indexer running against a partial copy of the
+    // corpus once wiped most of the index. Reject deletions of more than 20%
+    // of the corpus unless the client explicitly opts in.
+    const total = getSharedStats().total;
+    const deleteCap = Math.max(25, Math.floor(total * 0.2));
+    if (input.paths.length > deleteCap && req.headers["x-sherlock-allow-mass-delete"] !== "1") {
+      log.warn({ requested: input.paths.length, total, cap: deleteCap }, "mass delete rejected");
+      sendJson(res, 409, {
+        ok: false,
+        error: `mass delete rejected: ${input.paths.length} of ${total} docs exceeds cap ${deleteCap}; ` +
+          `send header X-Sherlock-Allow-Mass-Delete: 1 if intentional`,
+      });
+      return;
+    }
     sendJson(res, 200, { ok: true, deleted_docs: deletePreparedDocuments(input.paths) });
     return;
   }
