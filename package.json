@@ -21,6 +21,7 @@
     "seed:sources": "tsx src/scripts/seed-sources.ts",
     "context:api": "tsx src/retrieval/api-server.ts",
     "index:cloud": "tsx src/scripts/cloud-index-sync.ts",
+    "check:freshness": "tsx src/scripts/check-index-freshness.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

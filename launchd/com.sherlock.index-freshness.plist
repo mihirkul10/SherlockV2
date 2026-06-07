@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.sherlock.index-freshness</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>source $HOME/.nvm/nvm.sh &amp;&amp; cd /Users/sherlockkulkarni/Projects/SherlockV2 &amp;&amp; npm run check:freshness 2&gt;&amp;1</string>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>43200</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/sherlockkulkarni/Library/Logs/sherlock-index-freshness.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/sherlockkulkarni/Library/Logs/sherlock-index-freshness.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/sherlockkulkarni</string>
+        <key>NODE_ENV</key>
+        <string>production</string>
+    </dict>
+</dict>
+</plist>
